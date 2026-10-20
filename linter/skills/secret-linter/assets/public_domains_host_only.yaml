@@ -1,0 +1,23 @@
+# 同梱の許可リスト（ホストだけ公開のドメイン）。
+#
+# コードのホスティング・デザインツール・文書共有・チャット等で、
+# URL のパス・クエリ・サブドメインに、組織名・リポジトリ名・ファイル名など
+# 利用者ごとの内容が入るドメインを置く。ドメイン自身と `www.` 付きのホストだけの
+# 記載を通す。パス・クエリ・サブドメインを伴う URL は通さない。
+# 特定の組織に固有の値は置かない。
+- github.com
+- gist.github.com
+- raw.githubusercontent.com
+- gitlab.com
+- bitbucket.org
+- pythonhosted.org
+- figma.com
+- notion.so
+- docs.google.com
+- drive.google.com
+- dropbox.com
+- slack.com
+- discord.com
+- linkedin.com
+- twitter.com
+- x.com

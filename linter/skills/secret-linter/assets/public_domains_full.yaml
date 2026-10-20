@@ -1,0 +1,44 @@
+# 同梱の許可リスト（パスまで公開のドメイン）。
+#
+# 広く知られた公開ドメインで、URL のパス・クエリ・サブドメインにも
+# 利用者ごとの内容が入らないものを置く。接尾辞で一致させる
+# （`python.org` は `docs.python.org` も通す）。
+# 特定の組織に固有の値は置かない。
+- python.org
+- pypi.org
+- nodejs.org
+- npmjs.com
+- rust-lang.org
+- crates.io
+- docs.rs
+- go.dev
+- golang.org
+- kotlinlang.org
+- swift.org
+- dart.dev
+- pub.dev
+- flutter.dev
+- developer.android.com
+- developer.apple.com
+- mozilla.org
+- w3.org
+- whatwg.org
+- ietf.org
+- rfc-editor.org
+- wikipedia.org
+- stackoverflow.com
+- kernel.org
+- gnu.org
+- apache.org
+- opensource.org
+- spdx.org
+- creativecommons.org
+- json-schema.org
+- semver.org
+- keepachangelog.com
+- conventionalcommits.org
+- mermaid.js.org
+- dprint.dev
+- docs.github.com
+- code.claude.com
+- docs.anthropic.com

@@ -1,0 +1,36 @@
+# 同梱の許可リスト（公開の開発系パッケージの接頭辞）。
+#
+# 広く公開された開発系のパッケージ名（逆ドメイン形式の識別子）の接頭辞を置く。
+# `package_name` の候補が、ここの接頭辞のいずれかで始まれば通す。
+# 一致はラベルの境界での前置き一致であり、`org.apache` は `org.apache` と
+# その配下のパッケージを通し、`org.apache` に文字を続けただけの別のパッケージは通さない。
+# 個人や組織が自分で持つ名前の領域（`io.github`・`com.github` 等）は置かない。
+- org.apache
+- org.eclipse
+- org.junit
+- org.jetbrains
+- org.springframework
+- org.slf4j
+- org.gradle
+- org.mozilla
+- org.w3c
+- org.xml
+- com.apple
+- com.google
+- com.android
+- com.microsoft
+- com.facebook
+- com.squareup
+- com.sun
+- com.oracle
+- com.fasterxml
+- com.amazonaws
+- com.jetbrains
+- io.flutter
+- io.netty
+- io.reactivex
+- io.grpc
+- io.micrometer
+- io.opentelemetry
+- net.java
+- net.sf
