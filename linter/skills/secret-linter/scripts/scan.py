@@ -46,7 +46,9 @@ def build_parser():
     scope.add_argument("--branch", action="store_true")
     scope.add_argument("--dirs", nargs="+", metavar="PATH")
     scope.add_argument("--files", nargs="+", metavar="PATH")
-    parser.add_argument("--project-root", required=True, type=secret_common.absolute_path)
+    parser.add_argument(
+        "--project-root", required=True, type=secret_common.absolute_path
+    )
     return parser
 
 
@@ -85,20 +87,28 @@ def cmd_scan(args):
         return secret_common.error(str(exc))
     try:
         units, skipped = _units_and_skipped(args, inspection_id)
-        workspace.write(inspection_id, "units.json", {"units": units, "skipped": skipped})
+        workspace.write(
+            inspection_id, "units.json", {"units": units, "skipped": skipped}
+        )
         pattern = patterns.detect(units)
         workspace.write(inspection_id, "pattern.json", pattern)
-    except (targets.TargetError, patterns.PatternError, workspace.WorkspaceError) as exc:
+    except (
+        targets.TargetError,
+        patterns.PatternError,
+        workspace.WorkspaceError,
+    ) as exc:
         return _fail(inspection_id, str(exc))
     except Exception:
         # 想定外の例外でも作業領域を残さない。例外そのものは握りつぶさず再送出する
         workspace.remove(inspection_id)
         raise
-    secret_common.emit({
-        "inspection_id": inspection_id,
-        "unit_count": len(units),
-        "pattern_candidate_count": len(pattern["candidates"]),
-    })
+    secret_common.emit(
+        {
+            "inspection_id": inspection_id,
+            "unit_count": len(units),
+            "pattern_candidate_count": len(pattern["candidates"]),
+        }
+    )
     return 0
 
 

@@ -9,7 +9,7 @@ DES-087 のモジュール表 W-6（検査単位のパスを返す）の検証�
 - 引数が無いときは 2（argparse）
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_ai_units -v
+  python3 -m unittest tests.test_ai_units -v
 """
 
 import importlib.util
@@ -38,7 +38,9 @@ class UnitsTest(support.AiTestCase):
         iid = self.make_workspace()
         _, payload, _, _ = self.run_script("ai_units.py", iid)
         data = json.loads(Path(payload["units_path"]).read_text(encoding="utf-8"))
-        self.assertEqual([u["unit_id"] for u in data["units"]], ["U0001", "U0002", "U0003"])
+        self.assertEqual(
+            [u["unit_id"] for u in data["units"]], ["U0001", "U0002", "U0003"]
+        )
 
     def test_does_not_print_body_text(self):
         iid = self.make_workspace()

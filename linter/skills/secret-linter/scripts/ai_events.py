@@ -48,7 +48,9 @@ def place(inspection_id):
 
 def load_units(inspection_id):
     """``units.json`` の検査単位の配列を返す。作業領域か ``units.json`` が無ければ ``WorkspaceError``。"""
-    data = workspace.read_json(place(inspection_id) / "units.json", "検査単位の一覧（units.json）")
+    data = workspace.read_json(
+        place(inspection_id) / "units.json", "検査単位の一覧（units.json）"
+    )
     units = data.get("units") if isinstance(data, dict) else None
     if not isinstance(units, list):
         raise workspace.WorkspaceError("検査単位の一覧（units.json）の形が不正です")
@@ -69,11 +71,16 @@ def read_events(inspection_id):
     try:
         numbered = workspace.sequence_files(directory)
     except OSError as exc:
-        raise workspace.WorkspaceError("AI の候補の記録（ai_events）を列挙できません") from exc
+        raise workspace.WorkspaceError(
+            "AI の候補の記録（ai_events）を列挙できません"
+        ) from exc
     events = []
     for _, path in numbered:
         event = workspace.read_json(path, "AI の候補の記録（ai_events）")
-        if not isinstance(event, dict) or event.get("result") not in (RESULT_ACCEPTED, RESULT_REJECTED):
+        if not isinstance(event, dict) or event.get("result") not in (
+            RESULT_ACCEPTED,
+            RESULT_REJECTED,
+        ):
             raise workspace.WorkspaceError("AI の候補の記録（ai_events）の形が不正です")
         events.append(event)
     return events

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI 検出（``forge:secret-reader``）へ、検査単位の一覧ファイル（``units.json``）の絶対パスを返す。
+"""AI 検出（``linter:secret-reader``）へ、検査単位の一覧ファイル（``units.json``）の絶対パスを返す。
 
 検査 ID を受け取り、そのパスを標準出力の ``units_path`` で返す。本文は返さない（AI はパスのファイルを
 直接読む）。作業領域が無い、または ``units.json`` を読めないときは失敗する。

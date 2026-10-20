@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI 検出（``forge:secret-reader``）が見つけた機密候補を、1 件ずつ受け付ける。
+"""AI 検出（``linter:secret-reader``）が見つけた機密候補を、1 件ずつ受け付ける。
 
 候補 1 件ごとに 1 回呼ばれる。検査 ID（位置引数）・``--unit-id``・``--line``（任意、整数）・``--kind`` を引数で、
 値を標準入力（UTF-8。末尾の改行 1 つは値に含めない。空は拒否）で受け取る。AI は JSON を組み立てない。
@@ -100,7 +100,11 @@ def _find_reject_reason(unit, line, value):
 def _reject(inspection_id, reason):
     ai_events.write_event(
         inspection_id,
-        {"result": ai_events.RESULT_REJECTED, "reason": reason, "message": REJECT_MESSAGES[reason]},
+        {
+            "result": ai_events.RESULT_REJECTED,
+            "reason": reason,
+            "message": REJECT_MESSAGES[reason],
+        },
     )
     return secret_common.error(REJECT_MESSAGES[reason])
 
@@ -118,7 +122,14 @@ def cmd_add(args):
             return _reject(args.inspection_id, "invalid_value")
         if value == "":
             return _reject(args.inspection_id, "empty_value")
-        unit = next((u for u in units if isinstance(u, dict) and u.get("unit_id") == args.unit_id), None)
+        unit = next(
+            (
+                u
+                for u in units
+                if isinstance(u, dict) and u.get("unit_id") == args.unit_id
+            ),
+            None,
+        )
         if unit is None:
             return _reject(args.inspection_id, "unit_not_found")
         reason = _find_reject_reason(unit, args.line, value)
@@ -136,7 +147,8 @@ def cmd_add(args):
         if unit.get("commit") is not None:
             candidate["commit"] = unit["commit"]
         ai_events.write_event(
-            args.inspection_id, {"result": ai_events.RESULT_ACCEPTED, "candidate": candidate}
+            args.inspection_id,
+            {"result": ai_events.RESULT_ACCEPTED, "candidate": candidate},
         )
     except workspace.WorkspaceError as exc:
         return secret_common.error(str(exc))

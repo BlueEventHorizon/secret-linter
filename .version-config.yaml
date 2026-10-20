@@ -1,0 +1,38 @@
+# version_config_version: 1.0
+
+targets:
+  - name: linter
+    version_file: linter/.claude-plugin/plugin.json
+    version_path: version
+    scope:
+      - linter/**
+      - docs/specs/secret-linter/**
+      - tests/**
+      - ai_tests/**
+      - .github/workflows/ci.yml
+      - .gitignore
+      - CHANGELOG.md
+      - README.md
+      - dprint.json
+    sync_files:
+      - path: .claude-plugin/marketplace.json
+        pattern: '"version": "{version}"'
+        filter: '"name": "linter"'
+
+  - name: marketplace
+    version_file: .claude-plugin/marketplace.json
+    version_path: metadata.version
+    scope:
+      - .claude-plugin/marketplace.json
+
+changelog:
+  file: CHANGELOG.md
+  format: keep-a-changelog
+  git_log_auto: false
+  section_per_target: true
+
+git:
+  tag_format: "{version}"
+  commit_message: "chore: bump {target} to {version}"
+  auto_tag: false
+  auto_commit: false

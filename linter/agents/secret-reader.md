@@ -1,6 +1,6 @@
 ---
 name: secret-reader
-description: 検査の対象の本文を読み、形式を持たない混入（個人名・法人格の表記の無い会社名・リソース名等）の機密候補を script 経由で報告するカスタム Agent。合否は決めない。単独起動禁止（/forge:secret-linter 経由のみ）
+description: 検査の対象の本文を読み、形式を持たない混入（個人名・法人格の表記の無い会社名・リソース名等）の機密候補を script 経由で報告するカスタム Agent。合否は決めない。単独起動禁止（/linter:secret-linter 経由のみ）
 tools: [Read, Grep, Glob, Bash]
 model: inherit
 permissionMode: plan

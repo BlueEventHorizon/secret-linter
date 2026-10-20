@@ -7,7 +7,7 @@
 標準出力の組み立ては ``judge_summary.py`` が 1 か所に持つ（``answer.py`` も同じ形を返す）。
 本 script は、引数の解釈・入力の読み込み・規則の呼び出し・判定結果の書き込み・標準出力だけを担う。
 
-``--project-root`` は、プロジェクトの許可リスト（``.forge/secret_allowlist.yaml``）を探すために使う。
+``--project-root`` は、プロジェクトの許可リスト（``.secret-linter/allowlist.yaml``）を探すために使う。
 利用者のホームの ``~/.project-secret.yaml`` が無いときは、空のリストとして扱う。
 
 ## ``--rules-only`` の扱い
@@ -64,7 +64,9 @@ InputError = inspection_input.InputError
 def build_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("inspection_id")
-    parser.add_argument("--project-root", required=True, type=secret_common.absolute_path)
+    parser.add_argument(
+        "--project-root", required=True, type=secret_common.absolute_path
+    )
     parser.add_argument("--rules-only", action="store_true")
     return parser
 
@@ -73,17 +75,26 @@ def cmd_judge(args):
     inspection_id = args.inspection_id
     try:
         if not args.rules_only and not ai_events.is_done(inspection_id):
-            return secret_common.error("AI 検出の終了の印がありません（AI 検出が正常に終えていないため、判定できません）")
+            return secret_common.error(
+                "AI 検出の終了の印がありません（AI 検出が正常に終えていないため、判定できません）"
+            )
         candidates, suppressed, units, skipped = inspection_input.read_inputs(
             inspection_id, include_ai=not args.rules_only
         )
         loaded = lists.load_all(args.project_root)
         result = judgment.judge(candidates, loaded)
         workspace.write_next(inspection_id, "judgment", result)
-    except (InputError, workspace.WorkspaceError, judgment.JudgmentError, lists.ListFormatError) as exc:
+    except (
+        InputError,
+        workspace.WorkspaceError,
+        judgment.JudgmentError,
+        lists.ListFormatError,
+    ) as exc:
         return secret_common.error(str(exc))
 
-    secret_common.emit(judge_summary.build_summary(result, candidates, units, suppressed, skipped))
+    secret_common.emit(
+        judge_summary.build_summary(result, candidates, units, suppressed, skipped)
+    )
     return 0
 
 

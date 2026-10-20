@@ -13,7 +13,7 @@ DES-087 のモジュール表 W-1（作る）・W-2（書く）・W-5（消す�
 テストの入力値は、明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_workspace -v
+  python3 -m unittest tests.test_workspace -v
 """
 
 import importlib.util
@@ -26,8 +26,12 @@ import unittest
 from pathlib import Path
 
 _SCRIPT_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts" / "workspace.py"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
+    / "workspace.py"
 )
 
 _spec = importlib.util.spec_from_file_location("secret_linter_workspace", _SCRIPT_PATH)
@@ -95,7 +99,9 @@ class CreateTest(WorkspaceTestBase):
         first = self.create()
         second = self.create()
         self.assertNotEqual(first, second)
-        self.assertNotEqual(workspace.workspace_path(first), workspace.workspace_path(second))
+        self.assertNotEqual(
+            workspace.workspace_path(first), workspace.workspace_path(second)
+        )
 
     def test_concurrent_creates_do_not_collide(self):
         ids = []
@@ -195,7 +201,9 @@ class WriteTest(WorkspaceTestBase):
         workspace.write(inspection_id, "units.json", PLACEHOLDER)
         with self.assertRaises(WorkspaceError):
             workspace.write(inspection_id, "units.json", PLACEHOLDER)
-        names = sorted(p.name for p in workspace.workspace_path(inspection_id).iterdir())
+        names = sorted(
+            p.name for p in workspace.workspace_path(inspection_id).iterdir()
+        )
         self.assertEqual(names, ["units.json"])
 
     def test_creates_subdirectory_with_mode_0700(self):
@@ -210,7 +218,9 @@ class WriteTest(WorkspaceTestBase):
                 self.assertEqual(mode & 0o077, 0, directory)
                 directory = directory.parent
 
-    def test_creates_intermediate_directories_with_mode_0700_under_a_permissive_umask(self):
+    def test_creates_intermediate_directories_with_mode_0700_under_a_permissive_umask(
+        self,
+    ):
         inspection_id = self.create()
         old = os.umask(0o022)
         try:
@@ -267,7 +277,10 @@ class WriteNextTest(WorkspaceTestBase):
         first = workspace.write_next(inspection_id, "judgment", {"n": 1})
         second = workspace.write_next(inspection_id, "judgment", {"n": 2})
         third = workspace.write_next(inspection_id, "judgment", {"n": 3})
-        self.assertEqual([p.name for p in (first, second, third)], ["0001.json", "0002.json", "0003.json"])
+        self.assertEqual(
+            [p.name for p in (first, second, third)],
+            ["0001.json", "0002.json", "0003.json"],
+        )
         self.assertEqual(json.loads(third.read_text(encoding="utf-8")), {"n": 3})
 
     def test_earlier_files_are_not_modified(self):
@@ -283,7 +296,9 @@ class WriteNextTest(WorkspaceTestBase):
         second = workspace.write_next(inspection_id, "judgment", {"n": 2})
         directory = workspace.workspace_path(inspection_id) / "judgment"
         (directory / "notes.txt").write_text("not numbered", encoding="utf-8")
-        (directory / "12.json").write_text("{}", encoding="utf-8")  # 4 桁に満たない名前は連番ではない
+        (directory / "12.json").write_text(
+            "{}", encoding="utf-8"
+        )  # 4 桁に満たない名前は連番ではない
         self.assertEqual(workspace.sequence_files(directory), [(1, first), (2, second)])
 
     def test_directories_are_numbered_independently(self):
@@ -306,7 +321,9 @@ class WriteNextTest(WorkspaceTestBase):
         directory = workspace.workspace_path(inspection_id) / "judgment"
         directory.mkdir(mode=0o700)
         (directory / "notes.json").write_text("{}", encoding="utf-8")
-        (directory / "12.json").write_text("{}", encoding="utf-8")  # 4 桁未満は連番ではない
+        (directory / "12.json").write_text(
+            "{}", encoding="utf-8"
+        )  # 4 桁未満は連番ではない
         target = workspace.write_next(inspection_id, "judgment", {})
         self.assertEqual(target.name, "0001.json")
 
@@ -326,7 +343,9 @@ class WriteNextTest(WorkspaceTestBase):
         finally:
             workspace._last_number = original
         self.assertEqual(target.name, "0002.json")
-        self.assertEqual(json.loads(existing.read_text(encoding="utf-8")), {"keep": True})
+        self.assertEqual(
+            json.loads(existing.read_text(encoding="utf-8")), {"keep": True}
+        )
 
     def test_concurrent_writers_never_overwrite_each_other(self):
         inspection_id = self.create()
@@ -366,8 +385,12 @@ class ReadJsonTest(WorkspaceTestBase):
 
     def test_reads_a_json_file(self):
         inspection_id = self.create()
-        path = workspace.write(inspection_id, "a.json", {"value": "EXAMPLE_PLACEHOLDER_VALUE"})
-        self.assertEqual(workspace.read_json(path, "対象"), {"value": "EXAMPLE_PLACEHOLDER_VALUE"})
+        path = workspace.write(
+            inspection_id, "a.json", {"value": "EXAMPLE_PLACEHOLDER_VALUE"}
+        )
+        self.assertEqual(
+            workspace.read_json(path, "対象"), {"value": "EXAMPLE_PLACEHOLDER_VALUE"}
+        )
 
     def test_missing_file_raises_with_the_name(self):
         inspection_id = self.create()
@@ -389,7 +412,9 @@ class ReadJsonTest(WorkspaceTestBase):
     def test_unreadable_path_raises(self):
         inspection_id = self.create()
         with self.assertRaises(WorkspaceError):
-            workspace.read_json(workspace.workspace_path(inspection_id), "対象")  # ディレクトリ
+            workspace.read_json(
+                workspace.workspace_path(inspection_id), "対象"
+            )  # ディレクトリ
 
 
 class SequenceFilenameTest(WorkspaceTestBase):
@@ -420,7 +445,12 @@ class RemoveTest(WorkspaceTestBase):
         workspace.write_next(inspection_id, "judgment", PLACEHOLDER)
         workspace.remove(inspection_id)
         self.assertFalse(place.exists())
-        leftovers = [p for p in Path(tempfile.gettempdir()).glob(f"{workspace.PLACE_PREFIX}{inspection_id}*")]
+        leftovers = [
+            p
+            for p in Path(tempfile.gettempdir()).glob(
+                f"{workspace.PLACE_PREFIX}{inspection_id}*"
+            )
+        ]
         self.assertEqual(leftovers, [])
 
     def test_succeeds_when_place_does_not_exist(self):
@@ -471,7 +501,9 @@ class RemoveTest(WorkspaceTestBase):
             self.assertFalse(place.exists())
             self.assertTrue(victim.is_file())
 
-    @unittest.skipIf(os.name == "nt" or not hasattr(os, "getuid"), "所有者の概念が POSIX 前提")
+    @unittest.skipIf(
+        os.name == "nt" or not hasattr(os, "getuid"), "所有者の概念が POSIX 前提"
+    )
     def test_refuses_place_owned_by_someone_else(self):
         inspection_id = self.create()
         real_getuid = os.getuid

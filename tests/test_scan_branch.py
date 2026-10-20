@@ -14,7 +14,7 @@ DES-087 のモジュール表 T-1（``--branch``）・W-2 と、テスト表 SC-
 を検証する。作業領域の置き場（TMPDIR）はテストごとの専用ディレクトリへ向ける。入力は明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_scan_branch -v
+  python3 -m unittest tests.test_scan_branch -v
 """
 
 import json
@@ -26,12 +26,15 @@ import unittest
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 SCRIPT = _SCRIPTS_DIR / "scan.py"
 
-PLACE_PREFIX = "forge-secret-linter-"
+PLACE_PREFIX = "secret-linter-"
 
 #: 本文の代わりに置く、明白なプレースホルダ
 BODY_MARKER = "PLACEHOLDER-BODY-MARKER"
@@ -65,7 +68,11 @@ class ScanBranchTestCase(unittest.TestCase):
 
     def git(self, *args, cwd=None):
         result = subprocess.run(
-            ["git", *args], cwd=str(cwd or self.root), capture_output=True, check=True, env=self.env()
+            ["git", *args],
+            cwd=str(cwd or self.root),
+            capture_output=True,
+            check=True,
+            env=self.env(),
         )
         return result.stdout.decode("utf-8", errors="replace").strip()
 
@@ -82,7 +89,9 @@ class ScanBranchTestCase(unittest.TestCase):
         for rel, content in files.items():
             path = self.root / rel
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+            path.write_bytes(
+                content if isinstance(content, bytes) else content.encode("utf-8")
+            )
         self.git("add", "-A")
         self.git("commit", "-q", "-m", message)
         return self.git("rev-parse", "HEAD")
@@ -114,7 +123,9 @@ class SuccessTest(ScanBranchTestCase):
         code, payload, stdout, _ = self.scan_branch()
 
         self.assertEqual(code, 0)
-        self.assertEqual(sorted(payload), ["inspection_id", "pattern_candidate_count", "unit_count"])
+        self.assertEqual(
+            sorted(payload), ["inspection_id", "pattern_candidate_count", "unit_count"]
+        )
         self.assertEqual(payload["unit_count"], 2)
         self.assertRegex(payload["inspection_id"], r"^[0-9a-f]{32}$")
         self.assertEqual(len(stdout.strip().splitlines()), 1)
@@ -131,8 +142,13 @@ class SuccessTest(ScanBranchTestCase):
         self.assertEqual(lines_unit["label"], "a.txt")
         self.assertEqual(lines_unit["commit"], sha)
         self.assertEqual(lines_unit["line_numbers"], [1, 2])
-        self.assertEqual(Path(message_unit["text_path"]).read_text(encoding="utf-8"), "first message\n")
-        self.assertEqual(Path(lines_unit["text_path"]).read_text(encoding="utf-8"), "one\ntwo\n")
+        self.assertEqual(
+            Path(message_unit["text_path"]).read_text(encoding="utf-8"),
+            "first message\n",
+        )
+        self.assertEqual(
+            Path(lines_unit["text_path"]).read_text(encoding="utf-8"), "one\ntwo\n"
+        )
 
     def test_label_and_commit_are_separate_fields(self):
         self.init_repo()
@@ -141,11 +157,15 @@ class SuccessTest(ScanBranchTestCase):
         _, payload, _, _ = self.scan_branch()
 
         units = self.read_units(payload["inspection_id"])["units"]
-        self.assertEqual([(u["commit"], u["label"]) for u in units],
-                         [(sha, COMMIT_MESSAGE_LABEL), (sha, "dir/b.txt")])
+        self.assertEqual(
+            [(u["commit"], u["label"]) for u in units],
+            [(sha, COMMIT_MESSAGE_LABEL), (sha, "dir/b.txt")],
+        )
         self.assertRegex(sha, r"^[0-9a-f]+$")
 
-    def test_unit_ids_are_sequential_across_commits_and_skipped_units_take_no_number(self):
+    def test_unit_ids_are_sequential_across_commits_and_skipped_units_take_no_number(
+        self,
+    ):
         self.init_repo()
         self.commit("first", {"a.txt": "one\n", "data.bin": b"\x00\x01"})
         self.commit("second", {"b.txt": "two\n"})
@@ -175,7 +195,9 @@ class SuccessTest(ScanBranchTestCase):
     def test_deleted_binary_and_quoted_path_are_recorded_by_scan(self):
         self.init_repo()
         self.commit("add", {"gone.txt": "one\n"})
-        sha = self.commit("change", {"二進 data.bin": b"\x00", '資料 "x".txt': "line\n"})
+        sha = self.commit(
+            "change", {"二進 data.bin": b"\x00", '資料 "x".txt': "line\n"}
+        )
         self.git("rm", "-q", "--", "gone.txt")
         self.git("commit", "-q", "-m", "remove")
         removed = self.git("rev-parse", "HEAD")
@@ -194,7 +216,9 @@ class SuccessTest(ScanBranchTestCase):
                 key=lambda s: s["label"],
             ),
         )
-        self.assertIn((sha, '資料 "x".txt'), [(u["commit"], u["label"]) for u in data["units"]])
+        self.assertIn(
+            (sha, '資料 "x".txt'), [(u["commit"], u["label"]) for u in data["units"]]
+        )
 
     def test_repository_without_remote_targets_the_whole_history(self):
         self.init_repo()
@@ -208,7 +232,9 @@ class SuccessTest(ScanBranchTestCase):
 
     def test_pushed_commits_are_not_targets(self):
         self.init_repo()
-        self.git("init", "-q", "--bare", "-b", "main", str(self.remote), cwd=self.base_path)
+        self.git(
+            "init", "-q", "--bare", "-b", "main", str(self.remote), cwd=self.base_path
+        )
         self.git("remote", "add", "origin", str(self.remote))
         self.commit("pushed", {"pushed.txt": "one\n"})
         self.git("push", "-q", "origin", "main")
@@ -218,12 +244,16 @@ class SuccessTest(ScanBranchTestCase):
 
         self.assertEqual(code, 0)
         units = self.read_units(payload["inspection_id"])["units"]
-        self.assertEqual([(u["commit"], u["label"]) for u in units],
-                         [(local, COMMIT_MESSAGE_LABEL), (local, "local.txt")])
+        self.assertEqual(
+            [(u["commit"], u["label"]) for u in units],
+            [(local, COMMIT_MESSAGE_LABEL), (local, "local.txt")],
+        )
 
     def test_zero_units_when_everything_is_pushed(self):
         self.init_repo()
-        self.git("init", "-q", "--bare", "-b", "main", str(self.remote), cwd=self.base_path)
+        self.git(
+            "init", "-q", "--bare", "-b", "main", str(self.remote), cwd=self.base_path
+        )
         self.git("remote", "add", "origin", str(self.remote))
         self.commit("pushed", {"pushed.txt": "one\n"})
         self.git("push", "-q", "origin", "main")
@@ -233,7 +263,9 @@ class SuccessTest(ScanBranchTestCase):
         self.assertEqual(code, 0)
         self.assertEqual(payload["unit_count"], 0)
         self.assertNotIn("errors", payload)
-        self.assertEqual(self.read_units(payload["inspection_id"]), {"units": [], "skipped": []})
+        self.assertEqual(
+            self.read_units(payload["inspection_id"]), {"units": [], "skipped": []}
+        )
 
     def test_empty_repository_gives_zero_units(self):
         self.init_repo()
@@ -242,7 +274,9 @@ class SuccessTest(ScanBranchTestCase):
 
         self.assertEqual(code, 0)
         self.assertEqual(payload["unit_count"], 0)
-        self.assertEqual(self.read_units(payload["inspection_id"]), {"units": [], "skipped": []})
+        self.assertEqual(
+            self.read_units(payload["inspection_id"]), {"units": [], "skipped": []}
+        )
 
     def test_stdout_does_not_contain_the_body(self):
         self.init_repo()
@@ -257,14 +291,19 @@ class SuccessTest(ScanBranchTestCase):
     def test_history_with_a_message_that_looks_like_a_delimiter_is_not_broken(self):
         self.init_repo()
         fake = "0" * 32 + "0" * 8
-        sha = self.commit(f"subject\n\n{fake}\n@@ -1 +1 @@", {"a.txt": f"diff --git a/x b/x\n{fake}\n"})
+        sha = self.commit(
+            f"subject\n\n{fake}\n@@ -1 +1 @@",
+            {"a.txt": f"diff --git a/x b/x\n{fake}\n"},
+        )
 
         code, payload, _, _ = self.scan_branch()
 
         self.assertEqual(code, 0)
         data = self.read_units(payload["inspection_id"])
-        self.assertEqual([(u["commit"], u["label"]) for u in data["units"]],
-                         [(sha, COMMIT_MESSAGE_LABEL), (sha, "a.txt")])
+        self.assertEqual(
+            [(u["commit"], u["label"]) for u in data["units"]],
+            [(sha, COMMIT_MESSAGE_LABEL), (sha, "a.txt")],
+        )
         self.assertEqual(
             Path(data["units"][1]["text_path"]).read_text(encoding="utf-8"),
             f"diff --git a/x b/x\n{fake}\n",
@@ -282,20 +321,28 @@ def _git_supports_sha256():
 class Sha256RepositoryTest(ScanBranchTestCase):
     """識別子の長さに依存しない: SHA-256 のリポジトリ（識別子が 64 桁）でも検査できる。"""
 
-    @unittest.skipUnless(_git_supports_sha256(), "この git は --object-format=sha256 に対応しない")
+    @unittest.skipUnless(
+        _git_supports_sha256(), "この git は --object-format=sha256 に対応しない"
+    )
     def test_scan_branch_keeps_the_64_digit_commit_in_units_and_candidates(self):
         self.init_repo(object_format="sha256")
         email = "taro@" + "example.org"
-        sha = self.commit(f"contact {email}", {"a.txt": f"mail {email}\n", "data.bin": b"\x00\x01"})
+        sha = self.commit(
+            f"contact {email}", {"a.txt": f"mail {email}\n", "data.bin": b"\x00\x01"}
+        )
         self.assertEqual(len(sha), 64)
 
         code, payload, _, _ = self.scan_branch()
 
         self.assertEqual(code, 0, payload)
         data = self.read_units(payload["inspection_id"])
-        self.assertEqual([(u["commit"], u["label"]) for u in data["units"]],
-                         [(sha, COMMIT_MESSAGE_LABEL), (sha, "a.txt")])
-        self.assertEqual(data["skipped"], [{"label": "data.bin", "commit": sha, "reason": "binary"}])
+        self.assertEqual(
+            [(u["commit"], u["label"]) for u in data["units"]],
+            [(sha, COMMIT_MESSAGE_LABEL), (sha, "a.txt")],
+        )
+        self.assertEqual(
+            data["skipped"], [{"label": "data.bin", "commit": sha, "reason": "binary"}]
+        )
         place = self.tmpdir / f"{PLACE_PREFIX}{payload['inspection_id']}"
         pattern = json.loads((place / "pattern.json").read_text(encoding="utf-8"))
         self.assertEqual({c["commit"] for c in pattern["candidates"]}, {sha})
@@ -343,13 +390,17 @@ class ArgumentErrorExitTwoTest(ScanBranchTestCase):
     def test_branch_together_with_another_scope_is_exit_two(self):
         for other in (["--diff"], ["--dirs", "docs"], ["--files", "a.txt"]):
             with self.subTest(other=other):
-                code, _, stdout, _ = self.run_scan("--project-root", str(self.root), "--branch", *other)
+                code, _, stdout, _ = self.run_scan(
+                    "--project-root", str(self.root), "--branch", *other
+                )
                 self.assertEqual(code, 2)
                 self.assertEqual(stdout.strip(), "")
                 self.assertEqual(self.workspaces(), [])
 
     def test_branch_takes_no_value(self):
-        code, _, stdout, _ = self.run_scan("--project-root", str(self.root), "--branch", "main")
+        code, _, stdout, _ = self.run_scan(
+            "--project-root", str(self.root), "--branch", "main"
+        )
         self.assertEqual(code, 2)
         self.assertEqual(stdout.strip(), "")
 

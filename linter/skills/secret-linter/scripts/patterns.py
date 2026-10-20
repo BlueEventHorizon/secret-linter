@@ -84,9 +84,20 @@ ENTROPY_THRESHOLD = 4.5
 
 #: 機密候補の kind の語彙（パターン側。閉じた集合）
 KINDS = (
-    "known_token", "private_key", "connection_string", "jwt", "secret_assignment",
-    "password_prose", "high_entropy", "company_hint", "obfuscated_host", "package_name", "domain",
-    "email", "private_ip", "internal_host",
+    "known_token",
+    "private_key",
+    "connection_string",
+    "jwt",
+    "secret_assignment",
+    "password_prose",
+    "high_entropy",
+    "company_hint",
+    "obfuscated_host",
+    "package_name",
+    "domain",
+    "email",
+    "private_ip",
+    "internal_host",
 )
 
 #: 除外の理由。件数のキーをここ 1 箇所で定義する
@@ -94,6 +105,7 @@ FILTER_REASONS = ("placeholder", "code_expression", "path_like", "constant_name"
 
 #: プレースホルダの除外を適用する kind（規則 2〜5）
 _PLACEHOLDER_KINDS = frozenset(KINDS[:7])
+
 
 class PatternError(Exception):
     """パターン検出を完了できなかったことを表す。メッセージに本文・検出した値を含めない。"""
@@ -232,21 +244,61 @@ _COMPANY_HINT_RES = (
 
 #: ドメインの接尾辞（小文字）。``py`` ``md`` ``sh`` ``js`` 等のファイルの拡張子と衝突するものは含めない
 _DOMAIN_TLDS = (
-    "com", "net", "org", "io", "dev", "app", "jp", "co", "us", "uk", "de", "fr", "cn", "kr",
-    "tw", "hk", "sg", "au", "ca", "ai", "cloud", "info", "biz", "edu", "gov", "me", "tv", "xyz",
-    "site", "online", "tech", "ly",
+    "com",
+    "net",
+    "org",
+    "io",
+    "dev",
+    "app",
+    "jp",
+    "co",
+    "us",
+    "uk",
+    "de",
+    "fr",
+    "cn",
+    "kr",
+    "tw",
+    "hk",
+    "sg",
+    "au",
+    "ca",
+    "ai",
+    "cloud",
+    "info",
+    "biz",
+    "edu",
+    "gov",
+    "me",
+    "tv",
+    "xyz",
+    "site",
+    "online",
+    "tech",
+    "ly",
 )
 
 #: パッケージ名の根になる語（逆ドメインの先頭のラベル。小文字。大文字小文字を区別せずに判定する）。この 1 か所だけに持つ
 _PACKAGE_ROOTS = (
-    "com", "org", "net", "io", "jp", "co", "edu", "gov",
+    "com",
+    "org",
+    "net",
+    "io",
+    "jp",
+    "co",
+    "edu",
+    "gov",
 )
 #: 各ラベルは英字で始まり、英数字と ``_`` だけ（``-`` は含まない）。前が英数字・``_``・``.``・``@``、または
 #: 英数字・``_`` に続く ``-`` のとき、後ろが英数字・``_``・``-`` や ``.`` + 英数字のときは、より長い名前
 #: （ファイル名・メールアドレス・ハイフン付きの語）の一部として取らない。``${X:-com.example.app}`` の ``-`` は区切りである
 _PACKAGE_LABEL = r"[A-Za-z][A-Za-z0-9_]*"
 _PACKAGE_NAME_RE = re.compile(
-    r"(?<![A-Za-z0-9_.@])(?<![A-Za-z0-9_]-)(?i:" + "|".join(_PACKAGE_ROOTS) + r")(?:\." + _PACKAGE_LABEL + r"){2,}"
+    r"(?<![A-Za-z0-9_.@])(?<![A-Za-z0-9_]-)(?i:"
+    + "|".join(_PACKAGE_ROOTS)
+    + r")(?:\."
+    + _PACKAGE_LABEL
+    + r"){2,}"
     r"(?![A-Za-z0-9_-]|\.[A-Za-z0-9_])"
 )
 
@@ -254,8 +306,15 @@ _HOST_LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
 _OBFUSCATED_BRACKET = r"(?:\[\s*\.\s*\]|\(\s*\.\s*\)|\{\s*\.\s*\}|\[\s*dot\s*\]|\(\s*dot\s*\)|\{\s*dot\s*\})"
 _OBFUSCATED_PLAIN = r"[ \t]+dot[ \t]+"
 _OBFUSCATED_HOST_RE = re.compile(
-    r"(?<![A-Za-z0-9-])" + _HOST_LABEL
-    + r"(?:(?:" + _OBFUSCATED_BRACKET + "|" + _OBFUSCATED_PLAIN + r"|\.)" + _HOST_LABEL + r")+"
+    r"(?<![A-Za-z0-9-])"
+    + _HOST_LABEL
+    + r"(?:(?:"
+    + _OBFUSCATED_BRACKET
+    + "|"
+    + _OBFUSCATED_PLAIN
+    + r"|\.)"
+    + _HOST_LABEL
+    + r")+"
 )
 _OBFUSCATED_BRACKET_RE = re.compile(_OBFUSCATED_BRACKET)
 _OBFUSCATED_SEPARATOR_RE = re.compile(_OBFUSCATED_BRACKET + "|" + _OBFUSCATED_PLAIN)
@@ -269,11 +328,16 @@ _EMAIL_RE = re.compile(
 )
 _IPV4_RE = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\d|\.\d)")
 _INTERNAL_HOST_RE = re.compile(
-    r"(?<![A-Za-z0-9-])(?:" + _HOST_LABEL + r"\.)+(?:internal|local|corp|lan|intranet|localdomain)"
+    r"(?<![A-Za-z0-9-])(?:"
+    + _HOST_LABEL
+    + r"\.)+(?:internal|local|corp|lan|intranet|localdomain)"
     r"(?![A-Za-z0-9-]|\.[A-Za-z0-9_])"
 )
 _DOMAIN_RE = re.compile(
-    r"(?<![A-Za-z0-9_-])(?:" + _HOST_LABEL + r"\.)+(?:" + "|".join(sorted(_DOMAIN_TLDS, key=lambda t: (-len(t), t)))
+    r"(?<![A-Za-z0-9_-])(?:"
+    + _HOST_LABEL
+    + r"\.)+(?:"
+    + "|".join(sorted(_DOMAIN_TLDS, key=lambda t: (-len(t), t)))
     + r")(?![A-Za-z0-9-]|\.[A-Za-z0-9_])"
 )
 
@@ -288,7 +352,11 @@ def _is_private_ipv4(value):
     if octets is None:
         return False
     first, second = octets[0], octets[1]
-    return first == 10 or (first == 172 and 16 <= second <= 31) or (first == 192 and second == 168)
+    return (
+        first == 10
+        or (first == 172 and 16 <= second <= 31)
+        or (first == 192 and second == 168)
+    )
 
 
 def _is_obfuscated_host(matched):
@@ -300,7 +368,9 @@ def _is_obfuscated_host(matched):
     """
     if not _OBFUSCATED_SEPARATOR_RE.search(matched):
         return False
-    labels = [p for p in re.split(_OBFUSCATED_SEPARATOR_RE.pattern + r"|\.", matched) if p]
+    labels = [
+        p for p in re.split(_OBFUSCATED_SEPARATOR_RE.pattern + r"|\.", matched) if p
+    ]
     if len(labels) == 4 and all(p.isdigit() for p in labels):
         return _octets(".".join(labels)) is not None
     last = labels[-1]
@@ -407,7 +477,7 @@ def _windows(line):
     step = LINE_WINDOW_CHARS - WINDOW_OVERLAP_CHARS
     start = 0
     while True:
-        yield line[start:start + LINE_WINDOW_CHARS]
+        yield line[start : start + LINE_WINDOW_CHARS]
         if start + LINE_WINDOW_CHARS >= len(line):
             return
         start += step
@@ -426,7 +496,10 @@ def _iter_line_matches(line):
             found.append((index, kind, value, reason))
     for index, kind, value, reason in found:
         # 窓の境目で切れた断片は、後ろの窓が拾った、それを含む値に置き換わる
-        if any(later > index and value != other and value in other for later, _, other, _ in found):
+        if any(
+            later > index and value != other and value in other
+            for later, _, other, _ in found
+        ):
             continue
         yield kind, value, reason
 
@@ -468,14 +541,23 @@ def detect(units):
                 if any(value in earlier for earlier in seen):
                     continue
                 seen.append(value)
-                if reason is None and kind in _PLACEHOLDER_KINDS and _is_placeholder(value):
+                if (
+                    reason is None
+                    and kind in _PLACEHOLDER_KINDS
+                    and _is_placeholder(value)
+                ):
                     reason = "placeholder"
                 if reason is not None:
                     filtered[reason] += 1
                     continue
                 if is_suppressed:
                     suppressed.append(
-                        {"unit_id": unit["unit_id"], "label": unit["label"], "line": line_number, "kind": kind}
+                        {
+                            "unit_id": unit["unit_id"],
+                            "label": unit["label"],
+                            "line": line_number,
+                            "kind": kind,
+                        }
                     )
                     continue
                 candidate = {

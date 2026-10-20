@@ -20,7 +20,7 @@ git のリポジトリは一時ディレクトリに作る。個人・システ�
 （TMPDIR）もテストごとの専用ディレクトリへ向ける。入力は公式の例示値・明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_history -v
+  python3 -m unittest tests.test_history -v
 """
 
 import importlib.util
@@ -32,11 +32,16 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 
-_spec = importlib.util.spec_from_file_location("secret_linter_history", _SCRIPTS_DIR / "history.py")
+_spec = importlib.util.spec_from_file_location(
+    "secret_linter_history", _SCRIPTS_DIR / "history.py"
+)
 history = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(history)
 
@@ -90,7 +95,9 @@ class HistoryTestCase(unittest.TestCase):
         for rel, content in (files or {}).items():
             path = self.root / rel
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+            path.write_bytes(
+                content if isinstance(content, bytes) else content.encode("utf-8")
+            )
         for rel in remove:
             self.git("rm", "-q", "--", rel)
         self.git("add", "-A")
@@ -105,7 +112,9 @@ class HistoryTestCase(unittest.TestCase):
 
     def attach_remote(self):
         """ローカルの bare リポジトリをリモート ``origin`` にする（push 先）。"""
-        self.git("init", "-q", "--bare", "-b", "main", str(self.remote), cwd=self.root.parent)
+        self.git(
+            "init", "-q", "--bare", "-b", "main", str(self.remote), cwd=self.root.parent
+        )
         self.git("remote", "add", "origin", str(self.remote))
 
     # --- 解決 -------------------------------------------------------------
@@ -197,7 +206,9 @@ class UnitShapeTest(HistoryTestCase):
         units, _ = self.resolve()
 
         kinds = {(u["commit"], u["label"]): u["kind"] for u in units}
-        self.assertEqual(kinds, {(sha, MSG): "commit_message", (sha, "dir/a.txt"): "added_lines"})
+        self.assertEqual(
+            kinds, {(sha, MSG): "commit_message", (sha, "dir/a.txt"): "added_lines"}
+        )
         self.assertEqual(MSG, "コミットメッセージ")
         for unit in units:
             self.assertRegex(unit["commit"], r"^[0-9a-f]+$")
@@ -235,7 +246,13 @@ class UnitShapeTest(HistoryTestCase):
 
         self.assertEqual(
             self.keys(units),
-            [(second, MSG), (second, "b.txt"), (second, "c.txt"), (first, MSG), (first, "a.txt")],
+            [
+                (second, MSG),
+                (second, "b.txt"),
+                (second, "c.txt"),
+                (first, MSG),
+                (first, "a.txt"),
+            ],
         )
 
     def test_empty_commit_message_is_not_a_unit(self):
@@ -299,7 +316,9 @@ class LineNumberTest(HistoryTestCase):
 
         unit = self.numbers_match_file(sha, "a.txt", changed)
 
-        self.assertEqual(self.body(unit).splitlines(), ["CHANGED3", "INSERT_A", "INSERT_B"])
+        self.assertEqual(
+            self.body(unit).splitlines(), ["CHANGED3", "INSERT_A", "INSERT_B"]
+        )
         self.assertEqual(unit["line_numbers"], [3, 6, 7])
 
     def test_multiple_hunks_in_one_file(self):
@@ -346,7 +365,14 @@ class MergeCommitTest(HistoryTestCase):
         feature = self.commit("feature work", {"feature.txt": "FEATURE_LINE\n"})
         self.git("checkout", "-q", "main")
         self.commit("main work", {"main.txt": "MAIN_LINE\n"})
-        self.git("merge", "-q", "--no-ff", "-m", "Merge feature MERGE_MESSAGE_MARKER", "feature")
+        self.git(
+            "merge",
+            "-q",
+            "--no-ff",
+            "-m",
+            "Merge feature MERGE_MESSAGE_MARKER",
+            "feature",
+        )
         return feature, self.head()
 
     def test_merge_commit_message_is_a_unit(self):
@@ -364,7 +390,8 @@ class MergeCommitTest(HistoryTestCase):
         units, _ = self.resolve()
 
         self.assertEqual(
-            [u for u in units if u["commit"] == merge and u["kind"] == "added_lines"], []
+            [u for u in units if u["commit"] == merge and u["kind"] == "added_lines"],
+            [],
         )
 
     def test_lines_of_the_merged_branch_belong_to_its_own_commit_only(self):
@@ -385,7 +412,9 @@ class MergeCommitTest(HistoryTestCase):
         self.git("checkout", "-q", "main")
         self.commit("main work", {"main.txt": "MAIN_LINE\n"})
         self.git("merge", "-q", "--no-ff", "--no-commit", "feature")
-        (self.root / "by_merge.txt").write_text("ADDED_BY_THE_MERGE_ITSELF\n", encoding="utf-8")
+        (self.root / "by_merge.txt").write_text(
+            "ADDED_BY_THE_MERGE_ITSELF\n", encoding="utf-8"
+        )
         self.git("add", "-A")
         self.git("commit", "-q", "-m", "merge with an extra file")
         merge = self.head()
@@ -393,7 +422,9 @@ class MergeCommitTest(HistoryTestCase):
         units, skipped = self.resolve()
 
         self.assertEqual([k for k in self.keys(units) if k[0] == merge], [(merge, MSG)])
-        self.assertFalse(any("ADDED_BY_THE_MERGE_ITSELF" in self.body(u) for u in units))
+        self.assertFalse(
+            any("ADDED_BY_THE_MERGE_ITSELF" in self.body(u) for u in units)
+        )
         self.assertEqual([s for s in skipped if s["commit"] == merge], [])
 
     def test_unit_count_of_a_merge_history(self):
@@ -414,7 +445,9 @@ class DeletedFileTest(HistoryTestCase):
 
         units, skipped = self.resolve()
 
-        self.assertEqual(skipped, [{"label": "gone.txt", "commit": deleted, "reason": "deleted"}])
+        self.assertEqual(
+            skipped, [{"label": "gone.txt", "commit": deleted, "reason": "deleted"}]
+        )
         keys = self.keys(units)
         self.assertNotIn((deleted, "gone.txt"), keys)
         # 削除の commit のメッセージは検査単位のまま、追加した commit の追加行も残る
@@ -428,17 +461,23 @@ class DeletedFileTest(HistoryTestCase):
 
         units, _ = self.resolve()
 
-        self.assertEqual([k for k in self.keys(units) if k[0] == deleted], [(deleted, MSG)])
+        self.assertEqual(
+            [k for k in self.keys(units) if k[0] == deleted], [(deleted, MSG)]
+        )
 
     def test_deleting_one_file_does_not_hide_other_files_of_the_same_commit(self):
         self.init_repo()
         self.commit("add", {"gone.txt": "one\n"})
-        sha = self.commit("delete and add", {"new.txt": "NEW_LINE\n"}, remove=["gone.txt"])
+        sha = self.commit(
+            "delete and add", {"new.txt": "NEW_LINE\n"}, remove=["gone.txt"]
+        )
 
         units, skipped = self.resolve()
 
         self.assertEqual(self.body(self.by_key(units)[(sha, "new.txt")]), "NEW_LINE\n")
-        self.assertEqual(skipped, [{"label": "gone.txt", "commit": sha, "reason": "deleted"}])
+        self.assertEqual(
+            skipped, [{"label": "gone.txt", "commit": sha, "reason": "deleted"}]
+        )
 
 
 class BinaryTest(HistoryTestCase):
@@ -448,7 +487,9 @@ class BinaryTest(HistoryTestCase):
 
         units, skipped = self.resolve()
 
-        self.assertEqual(skipped, [{"label": "data.bin", "commit": sha, "reason": "binary"}])
+        self.assertEqual(
+            skipped, [{"label": "data.bin", "commit": sha, "reason": "binary"}]
+        )
         self.assertNotIn((sha, "data.bin"), self.keys(units))
 
     def test_binary_file_does_not_hide_text_files_of_the_same_commit(self):
@@ -458,7 +499,9 @@ class BinaryTest(HistoryTestCase):
         units, skipped = self.resolve()
 
         self.assertEqual(self.body(self.by_key(units)[(sha, "a.txt")]), "TEXT_LINE\n")
-        self.assertEqual(skipped, [{"label": "data.bin", "commit": sha, "reason": "binary"}])
+        self.assertEqual(
+            skipped, [{"label": "data.bin", "commit": sha, "reason": "binary"}]
+        )
 
     def test_text_that_looks_like_a_binary_marker_is_still_text(self):
         # 本文の ``Binary files … differ`` は、追加行（``+`` で始まる）としてのみ現れる
@@ -469,7 +512,8 @@ class BinaryTest(HistoryTestCase):
 
         self.assertEqual(skipped, [])
         self.assertEqual(
-            self.body(self.by_key(units)[(sha, "a.txt")]), "Binary files a/x and b/x differ\n"
+            self.body(self.by_key(units)[(sha, "a.txt")]),
+            "Binary files a/x and b/x differ\n",
         )
 
 
@@ -477,7 +521,9 @@ class LargeBodyTest(HistoryTestCase):
     def test_large_body_is_a_unit_not_skipped(self):
         """追加行の本文が大きくても、除外しない（除外すると、機密が検査されないまま合格になる）。"""
         self.init_repo()
-        sha = self.commit("m", {"big.txt": "x" * (2 * 1024 * 1024) + "\n", "small.txt": "ok\n"})
+        sha = self.commit(
+            "m", {"big.txt": "x" * (2 * 1024 * 1024) + "\n", "small.txt": "ok\n"}
+        )
 
         units, skipped = self.resolve()
 
@@ -525,7 +571,9 @@ class QuotedPathTest(HistoryTestCase):
         self.init_repo()
         self.commit("add", {"削除 する.txt": "one\n"})
         sha = self.commit(
-            "delete and add binary", {"二進 data.bin": b"\x00\x01"}, remove=["削除 する.txt"]
+            "delete and add binary",
+            {"二進 data.bin": b"\x00\x01"},
+            remove=["削除 する.txt"],
         )
 
         _, skipped = self.resolve()
@@ -577,7 +625,9 @@ class DelimiterCollisionTest(HistoryTestCase):
         self.assertEqual(skipped, [])
         unit = self.by_key(units)[(sha, "hostile.txt")]
         self.assertEqual(self.body(unit), content)
-        self.assertEqual(unit["line_numbers"], list(range(1, len(self.HOSTILE_LINES) + 1)))
+        self.assertEqual(
+            unit["line_numbers"], list(range(1, len(self.HOSTILE_LINES) + 1))
+        )
         self.assertEqual(self.keys(units), [(sha, MSG), (sha, "hostile.txt")])
 
     def test_message_that_looks_like_diff_headers_stays_one_message(self):
@@ -599,7 +649,9 @@ class DelimiterCollisionTest(HistoryTestCase):
         units, _ = self.resolve()
 
         self.assertEqual(self.keys(units), [(sha, MSG), (sha, "a.txt")])
-        self.assertEqual(self.body(self.by_key(units)[(sha, "a.txt")]), f"{fake}\n{fake}\n")
+        self.assertEqual(
+            self.body(self.by_key(units)[(sha, "a.txt")]), f"{fake}\n{fake}\n"
+        )
 
     def test_the_delimiter_is_generated_for_each_run(self):
         self.init_repo()
@@ -647,13 +699,17 @@ class GitConfigIndependenceTest(HistoryTestCase):
             self.git("config", key, value)
         self.commit("base", {"old name.txt": "one\ntwo\nthree\n"})
         self.git("mv", "old name.txt", "new name.txt")
-        sha = self.commit("rename and edit", {"new name.txt": "one\nTWO_EDITED\nthree\n"})
+        sha = self.commit(
+            "rename and edit", {"new name.txt": "one\nTWO_EDITED\nthree\n"}
+        )
 
         units, skipped = self.resolve()
 
         # リネームの検出は切っている（設定の ``diff.renames`` に依らない）。新しいパスの全行が追加行で、
         # 古いパスは削除として記録される
-        self.assertEqual(skipped, [{"label": "old name.txt", "commit": sha, "reason": "deleted"}])
+        self.assertEqual(
+            skipped, [{"label": "old name.txt", "commit": sha, "reason": "deleted"}]
+        )
         unit = self.by_key(units)[(sha, "new name.txt")]
         self.assertEqual(self.body(unit), "one\nTWO_EDITED\nthree\n")
         self.assertEqual(unit["line_numbers"], [1, 2, 3])
@@ -682,8 +738,12 @@ class GitConfigIndependenceTest(HistoryTestCase):
 
         units, skipped = self.resolve()
 
-        self.assertEqual(self.body(self.by_key(units)[(sha, "after.txt")]), "one\ntwo\n")
-        self.assertEqual(skipped, [{"label": "before.txt", "commit": sha, "reason": "deleted"}])
+        self.assertEqual(
+            self.body(self.by_key(units)[(sha, "after.txt")]), "one\ntwo\n"
+        )
+        self.assertEqual(
+            skipped, [{"label": "before.txt", "commit": sha, "reason": "deleted"}]
+        )
 
 
 class UndecidedBehaviorTest(HistoryTestCase):

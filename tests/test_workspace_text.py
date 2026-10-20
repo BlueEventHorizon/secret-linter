@@ -13,7 +13,7 @@ DES-087 のモジュール表 W-2（書く）の、本文（テキスト）を�
 入力は明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_workspace_text -v
+  python3 -m unittest tests.test_workspace_text -v
 """
 
 import importlib.util
@@ -26,11 +26,17 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPT_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts" / "workspace.py"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
+    / "workspace.py"
 )
 
-_spec = importlib.util.spec_from_file_location("secret_linter_workspace_text", _SCRIPT_PATH)
+_spec = importlib.util.spec_from_file_location(
+    "secret_linter_workspace_text", _SCRIPT_PATH
+)
 workspace = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(workspace)
 
@@ -54,7 +60,9 @@ class WriteTextTestCase(unittest.TestCase):
         return inspection_id
 
     def names(self, inspection_id, rel=""):
-        return sorted(p.name for p in (workspace.workspace_path(inspection_id) / rel).iterdir())
+        return sorted(
+            p.name for p in (workspace.workspace_path(inspection_id) / rel).iterdir()
+        )
 
 
 class ContentTest(WriteTextTestCase):
@@ -63,12 +71,14 @@ class ContentTest(WriteTextTestCase):
 
         target = workspace.write_text(inspection_id, "texts/0001.txt", TEXT)
 
-        self.assertEqual(target, workspace.workspace_path(inspection_id) / "texts" / "0001.txt")
+        self.assertEqual(
+            target, workspace.workspace_path(inspection_id) / "texts" / "0001.txt"
+        )
         self.assertEqual(target.read_bytes(), TEXT.encode("utf-8"))
 
     def test_text_is_utf8_and_not_transformed(self):
         inspection_id = self.create()
-        text = "日本語の本文 \"quoted\" \\ backslash\n"
+        text = '日本語の本文 "quoted" \\ backslash\n'
 
         target = workspace.write_text(inspection_id, "t.txt", text)
 
@@ -93,8 +103,14 @@ class ContentTest(WriteTextTestCase):
         second = self.create()
         workspace.write_text(first, "t.txt", "first\n")
         workspace.write_text(second, "t.txt", "second\n")
-        self.assertEqual((workspace.workspace_path(first) / "t.txt").read_text(encoding="utf-8"), "first\n")
-        self.assertEqual((workspace.workspace_path(second) / "t.txt").read_text(encoding="utf-8"), "second\n")
+        self.assertEqual(
+            (workspace.workspace_path(first) / "t.txt").read_text(encoding="utf-8"),
+            "first\n",
+        )
+        self.assertEqual(
+            (workspace.workspace_path(second) / "t.txt").read_text(encoding="utf-8"),
+            "second\n",
+        )
 
 
 class NoOverwriteTest(WriteTextTestCase):
@@ -166,7 +182,9 @@ class PublishAfterCompletionTest(WriteTextTestCase):
     def test_a_failure_before_publication_leaves_no_file_behind(self):
         inspection_id = self.create()
 
-        with mock.patch.object(workspace.os, "link", side_effect=OSError("link failed")):
+        with mock.patch.object(
+            workspace.os, "link", side_effect=OSError("link failed")
+        ):
             with self.assertRaises(WorkspaceError):
                 workspace.write_text(inspection_id, "texts/0001.txt", TEXT)
 
@@ -175,7 +193,9 @@ class PublishAfterCompletionTest(WriteTextTestCase):
     def test_a_failure_while_writing_leaves_no_file_behind(self):
         inspection_id = self.create()
 
-        with mock.patch.object(workspace.os, "fdopen", side_effect=OSError("write failed")):
+        with mock.patch.object(
+            workspace.os, "fdopen", side_effect=OSError("write failed")
+        ):
             with self.assertRaises(WorkspaceError):
                 workspace.write_text(inspection_id, "t.txt", TEXT)
 
@@ -195,7 +215,9 @@ class ModeTest(WriteTextTestCase):
         root = workspace.workspace_path(inspection_id)
         directory = target.parent
         while directory != root:
-            self.assertEqual(stat.S_IMODE(os.lstat(directory).st_mode), 0o700, directory)
+            self.assertEqual(
+                stat.S_IMODE(os.lstat(directory).st_mode), 0o700, directory
+            )
             directory = directory.parent
 
     def test_file_is_readable_only_by_the_creator(self):
@@ -211,7 +233,14 @@ class ModeTest(WriteTextTestCase):
 class RejectionTest(WriteTextTestCase):
     def test_rejects_relative_paths_that_leave_the_place(self):
         inspection_id = self.create()
-        for rel in ("../outside.txt", "/abs.txt", "", ".", "a/../../b.txt", "a//..//..//b.txt"):
+        for rel in (
+            "../outside.txt",
+            "/abs.txt",
+            "",
+            ".",
+            "a/../../b.txt",
+            "a//..//..//b.txt",
+        ):
             with self.subTest(rel=rel):
                 with self.assertRaises(WorkspaceError):
                     workspace.write_text(inspection_id, rel, TEXT)
@@ -219,7 +248,9 @@ class RejectionTest(WriteTextTestCase):
     def test_nothing_is_written_outside_the_place_when_rejected(self):
         inspection_id = self.create()
         with tempfile.TemporaryDirectory() as outside:
-            escape = os.path.relpath(Path(outside) / "escaped.txt", workspace.workspace_path(inspection_id))
+            escape = os.path.relpath(
+                Path(outside) / "escaped.txt", workspace.workspace_path(inspection_id)
+            )
             with self.assertRaises(WorkspaceError):
                 workspace.write_text(inspection_id, escape, TEXT)
             self.assertEqual(os.listdir(outside), [])

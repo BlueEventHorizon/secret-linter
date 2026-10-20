@@ -18,7 +18,7 @@ DES-087 のモジュール表 L-1・J-1・W-2 と、テスト表 SC-07・SC-09 �
 実際のホームを読まない・書かない。入力は明白なプレースホルダだけを使う。機密らしい値は連結して組み立てる。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_judge -v
+  python3 -m unittest tests.test_judge -v
 """
 
 import json
@@ -31,8 +31,11 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 SCRIPT = _SCRIPTS_DIR / "judge.py"
 sys.path.insert(0, str(_SCRIPTS_DIR))
@@ -53,7 +56,12 @@ LISTED_HOST = "host.corp.example.com"
 
 def pattern_candidate(cid, kind, value, unit_id="U0001", line=1, commit=None):
     candidate = {
-        "candidate_id": cid, "source": "pattern", "unit_id": unit_id, "line": line, "kind": kind, "value": value,
+        "candidate_id": cid,
+        "source": "pattern",
+        "unit_id": unit_id,
+        "line": line,
+        "kind": kind,
+        "value": value,
     }
     if commit is not None:
         candidate["commit"] = commit
@@ -80,24 +88,47 @@ class JudgeTestCase(unittest.TestCase):
         env.pop("TMP", None)
         return env
 
-    def make_workspace(self, candidates, suppressed=None, skipped=None, units=None, write_pattern=True, done=True):
+    def make_workspace(
+        self,
+        candidates,
+        suppressed=None,
+        skipped=None,
+        units=None,
+        write_pattern=True,
+        done=True,
+    ):
         """``done`` が真なら AI 検出の終了の印を書く（``--rules-only`` なしの ``judge.py`` が判定できる状態）。"""
         with mock.patch.object(tempfile, "tempdir", str(self.tmpdir)):
             inspection_id = workspace.create()
             if done:
                 workspace.write(inspection_id, "ai_done.json", {"exit": "0"})
-            workspace.write(inspection_id, "units.json", {
-                "units": units if units is not None else [
-                    {"unit_id": "U0001", "kind": "file", "label": "docs/a.md", "text_path": "/dev/null"},
-                ],
-                "skipped": skipped or [],
-            })
+            workspace.write(
+                inspection_id,
+                "units.json",
+                {
+                    "units": units
+                    if units is not None
+                    else [
+                        {
+                            "unit_id": "U0001",
+                            "kind": "file",
+                            "label": "docs/a.md",
+                            "text_path": "/dev/null",
+                        },
+                    ],
+                    "skipped": skipped or [],
+                },
+            )
             if write_pattern:
-                workspace.write(inspection_id, "pattern.json", {
-                    "candidates": candidates,
-                    "suppressed": suppressed or {"count": 0, "locations": []},
-                    "filtered": {"count": 0, "reasons": {}},
-                })
+                workspace.write(
+                    inspection_id,
+                    "pattern.json",
+                    {
+                        "candidates": candidates,
+                        "suppressed": suppressed or {"count": 0, "locations": []},
+                        "filtered": {"count": 0, "reasons": {}},
+                    },
+                )
         return inspection_id
 
     def workspace_dir(self, inspection_id):
@@ -105,7 +136,10 @@ class JudgeTestCase(unittest.TestCase):
 
     def run_judge(self, *args):
         completed = subprocess.run(
-            vocab.argv(SCRIPT, *args, no_reserved=True), capture_output=True, text=True, env=self.env(),
+            vocab.argv(SCRIPT, *args, no_reserved=True),
+            capture_output=True,
+            text=True,
+            env=self.env(),
         )
         payload = json.loads(completed.stdout) if completed.stdout.strip() else None
         return completed.returncode, payload, completed
@@ -133,7 +167,11 @@ class SuccessTest(JudgeTestCase):
         self.assertEqual(payload["class"], "fail")
         self.assertEqual(payload["pass_count"], 1)
         self.assertEqual(payload["fail_count"], 1)
-        written = json.loads((self.workspace_dir(inspection_id) / "judgment" / "0001.json").read_text(encoding="utf-8"))
+        written = json.loads(
+            (self.workspace_dir(inspection_id) / "judgment" / "0001.json").read_text(
+                encoding="utf-8"
+            )
+        )
         self.assertEqual(written["class"], "fail")
         self.assertEqual(
             [(c["candidate_id"], c["class"]) for c in written["candidates"]],
@@ -154,45 +192,76 @@ class SuccessTest(JudgeTestCase):
 
         _, payload, completed = self.judge(inspection_id)
 
-        self.assertEqual(payload["confirm"], [{
-            "candidate_id": "P0002", "unit_id": "U0001", "label": "docs/a.md", "line": 7,
-            "kind": "domain", "value": CONFIRM_HOST, "commit": "abc123",
-        }])
+        self.assertEqual(
+            payload["confirm"],
+            [
+                {
+                    "candidate_id": "P0002",
+                    "unit_id": "U0001",
+                    "label": "docs/a.md",
+                    "line": 7,
+                    "kind": "domain",
+                    "value": CONFIRM_HOST,
+                    "commit": "abc123",
+                }
+            ],
+        )
         self.assertNotIn(FAIL_VALUE, completed.stdout)
         self.assertNotIn(PASS_HOST, completed.stdout)
 
     def test_overall_confirm_and_pass_exit_zero(self):
-        code, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "domain", CONFIRM_HOST)]))
+        code, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "domain", CONFIRM_HOST)])
+        )
         self.assertEqual((code, payload["class"]), (0, "confirm"))
-        code, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "domain", PASS_HOST)]))
+        code, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "domain", PASS_HOST)])
+        )
         self.assertEqual((code, payload["class"], payload["confirm"]), (0, "pass", []))
 
     def test_no_candidates_is_pass(self):
         code, payload, _ = self.judge(self.make_workspace([]))
-        self.assertEqual((code, payload["class"], payload["pass_count"]), (0, "pass", 0))
+        self.assertEqual(
+            (code, payload["class"], payload["pass_count"]), (0, "pass", 0)
+        )
 
     def test_suppressed_and_skipped_are_passed_through(self):
-        suppressed = {"count": 1, "locations": [{"unit_id": "U0001", "label": "docs/a.md", "line": 4, "kind": "email"}]}
+        suppressed = {
+            "count": 1,
+            "locations": [
+                {"unit_id": "U0001", "label": "docs/a.md", "line": 4, "kind": "email"}
+            ],
+        }
         skipped = [{"label": "big.bin", "reason": "too large"}]
-        _, payload, _ = self.judge(self.make_workspace([], suppressed=suppressed, skipped=skipped))
+        _, payload, _ = self.judge(
+            self.make_workspace([], suppressed=suppressed, skipped=skipped)
+        )
         self.assertEqual(payload["suppressed"], suppressed)
         self.assertEqual(payload["skipped"], skipped)
 
     def test_rules_only_flag_gives_same_judgment_for_pattern_only_workspace(self):
         # 終了の印があり AI の候補が 0 件なら、--rules-only の有無で同じ判定になる（AI の候補がある場合は test_judge_ai.py）
-        candidates = [pattern_candidate("P0001", "domain", CONFIRM_HOST), pattern_candidate("P0002", "jwt", FAIL_VALUE)]
+        candidates = [
+            pattern_candidate("P0001", "domain", CONFIRM_HOST),
+            pattern_candidate("P0002", "jwt", FAIL_VALUE),
+        ]
         _, without, _ = self.judge(self.make_workspace(candidates))
         _, with_flag, _ = self.judge(self.make_workspace(candidates), "--rules-only")
         self.assertEqual(without, with_flag)
 
     def test_deterministic(self):
-        candidates = [pattern_candidate("P0001", "domain", CONFIRM_HOST), pattern_candidate("P0002", "jwt", FAIL_VALUE)]
+        candidates = [
+            pattern_candidate("P0001", "domain", CONFIRM_HOST),
+            pattern_candidate("P0002", "jwt", FAIL_VALUE),
+        ]
         inspection_id = self.make_workspace(candidates)
         _, first, _ = self.judge(inspection_id)
         _, second, _ = self.judge(inspection_id)
         self.assertEqual(first, second)
         directory = self.workspace_dir(inspection_id) / "judgment"
-        self.assertEqual(sorted(p.name for p in directory.iterdir()), ["0001.json", "0002.json"])
+        self.assertEqual(
+            sorted(p.name for p in directory.iterdir()), ["0001.json", "0002.json"]
+        )
         self.assertEqual(
             (directory / "0001.json").read_text(encoding="utf-8"),
             (directory / "0002.json").read_text(encoding="utf-8"),
@@ -200,25 +269,33 @@ class SuccessTest(JudgeTestCase):
 
     def test_rules_only_does_not_read_broken_ai_files(self):
         # --rules-only は AI 検出の成果物を読まない。壊れていても、無くても 0 を返す
-        inspection_id = self.make_workspace([pattern_candidate("P0001", "domain", PASS_HOST)], done=False)
+        inspection_id = self.make_workspace(
+            [pattern_candidate("P0001", "domain", PASS_HOST)], done=False
+        )
         directory = self.workspace_dir(inspection_id) / "ai_events"
         directory.mkdir()
         (directory / "0001.json").write_text("{not json", encoding="utf-8")
         code, payload, _ = self.judge(inspection_id, "--rules-only")
-        self.assertEqual((code, payload["class"], payload["pass_count"]), (0, "pass", 1))
+        self.assertEqual(
+            (code, payload["class"], payload["pass_count"]), (0, "pass", 1)
+        )
 
 
 class ListsTest(JudgeTestCase):
     def test_missing_home_secret_file_is_treated_as_empty(self):
         # SC-09: ~/.project-secret.yaml が無い間は空のリストとして扱う（エラーにせず、作成もしない）
         self.assertFalse((self.home / ".project-secret.yaml").exists())
-        code, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "domain", CONFIRM_HOST)]))
+        code, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "domain", CONFIRM_HOST)])
+        )
         self.assertEqual((code, payload["class"]), (0, "confirm"))
         self.assertFalse((self.home / ".project-secret.yaml").exists())
 
     def test_secret_name_list_makes_fail_even_if_project_allowlist_matches(self):
         self.write_list(self.home / ".project-secret.yaml", f"- {LISTED_HOST}\n")
-        self.write_list(self.root / ".forge" / "secret_allowlist.yaml", f"- {LISTED_HOST}\n")
+        self.write_list(
+            self.root / ".secret-linter" / "allowlist.yaml", f"- {LISTED_HOST}\n"
+        )
         code, payload, completed = self.judge(
             self.make_workspace([pattern_candidate("P0001", "domain", LISTED_HOST)])
         )
@@ -226,38 +303,63 @@ class ListsTest(JudgeTestCase):
         self.assertNotIn(LISTED_HOST, completed.stdout)
 
     def test_project_allowlist_passes(self):
-        self.write_list(self.root / ".forge" / "secret_allowlist.yaml", f"- {CONFIRM_HOST}\n")
-        code, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "domain", CONFIRM_HOST)]))
+        self.write_list(
+            self.root / ".secret-linter" / "allowlist.yaml", f"- {CONFIRM_HOST}\n"
+        )
+        code, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "domain", CONFIRM_HOST)])
+        )
         self.assertEqual((code, payload["class"]), (0, "pass"))
 
     def test_email_passes_when_the_exact_address_is_in_allowlist(self):
         email = "someone@" + CONFIRM_HOST
-        self.write_list(self.root / ".forge" / "secret_allowlist.yaml", f"- {email}\n")
-        code, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "email", email)]))
+        self.write_list(self.root / ".secret-linter" / "allowlist.yaml", f"- {email}\n")
+        code, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "email", email)])
+        )
         self.assertEqual((code, payload["class"]), (0, "pass"))
 
     def test_email_stays_confirm_when_only_the_domain_is_in_allowlist(self):
         email = "someone@" + CONFIRM_HOST
-        self.write_list(self.root / ".forge" / "secret_allowlist.yaml", f"- {CONFIRM_HOST}\n- \"*.{CONFIRM_HOST}\"\n")
-        code, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "email", email)]))
+        self.write_list(
+            self.root / ".secret-linter" / "allowlist.yaml",
+            f'- {CONFIRM_HOST}\n- "*.{CONFIRM_HOST}"\n',
+        )
+        code, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "email", email)])
+        )
         self.assertEqual((code, payload["class"]), (0, "confirm"))
 
     def test_host_only_bundled_domain_with_path_is_confirm(self):
-        for value in (f"https://{GITHUB_HOST}/other-org/some-repo?tab=x", vocab.domain("other-org", GITHUB_HOST)):
+        for value in (
+            f"https://{GITHUB_HOST}/other-org/some-repo?tab=x",
+            vocab.domain("other-org", GITHUB_HOST),
+        ):
             with self.subTest(value=value):
-                code, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "domain", value)]))
+                code, payload, _ = self.judge(
+                    self.make_workspace([pattern_candidate("P0001", "domain", value)])
+                )
                 self.assertEqual((code, payload["class"]), (0, "confirm"))
-        _, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "domain", GITHUB_HOST)]))
+        _, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "domain", GITHUB_HOST)])
+        )
         self.assertEqual(payload["class"], "pass")
-        _, payload, _ = self.judge(self.make_workspace([pattern_candidate("P0001", "domain", PASS_HOST)]))
+        _, payload, _ = self.judge(
+            self.make_workspace([pattern_candidate("P0001", "domain", PASS_HOST)])
+        )
         self.assertEqual(payload["class"], "pass")
 
 
 class FailureTest(JudgeTestCase):
     def test_invalid_project_list_returns_1_with_line_number_only(self):
         leaked = "SENTINEL-" + "LINE-CONTENT"
-        self.write_list(self.root / ".forge" / "secret_allowlist.yaml", f"- ok.example.com\nkey: {leaked}\n")
-        inspection_id = self.make_workspace([pattern_candidate("P0001", "domain", CONFIRM_HOST)])
+        self.write_list(
+            self.root / ".secret-linter" / "allowlist.yaml",
+            f"- ok.example.com\nkey: {leaked}\n",
+        )
+        inspection_id = self.make_workspace(
+            [pattern_candidate("P0001", "domain", CONFIRM_HOST)]
+        )
 
         code, payload, completed = self.judge(inspection_id)
 
@@ -269,7 +371,9 @@ class FailureTest(JudgeTestCase):
 
     def test_invalid_secret_name_list_returns_1_with_line_number_only(self):
         leaked = "SENTINEL-" + "NAME-CONTENT"
-        self.write_list(self.home / ".project-secret.yaml", f"# comment\n- ok-name\n  - {leaked}\n")
+        self.write_list(
+            self.home / ".project-secret.yaml", f"# comment\n- ok-name\n  - {leaked}\n"
+        )
         code, payload, completed = self.judge(self.make_workspace([]))
         self.assertEqual(code, 1)
         self.assertIn("3 行目", payload["errors"][0])
@@ -293,13 +397,17 @@ class FailureTest(JudgeTestCase):
     def test_broken_pattern_json_returns_1_without_leaking_content(self):
         leaked = "SENTINEL-" + "BROKEN-CONTENT"
         inspection_id = self.make_workspace([], write_pattern=False)
-        (self.workspace_dir(inspection_id) / "pattern.json").write_text("{" + leaked, encoding="utf-8")
+        (self.workspace_dir(inspection_id) / "pattern.json").write_text(
+            "{" + leaked, encoding="utf-8"
+        )
         code, payload, completed = self.judge(inspection_id)
         self.assertEqual(code, 1)
         self.assertNotIn(leaked, completed.stdout)
 
     def test_unknown_kind_returns_1_without_the_value(self):
-        inspection_id = self.make_workspace([pattern_candidate("P0001", "not_a_kind", FAIL_VALUE)])
+        inspection_id = self.make_workspace(
+            [pattern_candidate("P0001", "not_a_kind", FAIL_VALUE)]
+        )
         code, payload, completed = self.judge(inspection_id)
         self.assertEqual(code, 1)
         self.assertNotIn(FAIL_VALUE, completed.stdout)
@@ -309,20 +417,34 @@ class ArgumentTest(JudgeTestCase):
     def test_relative_project_root_is_exit_2(self):
         completed = subprocess.run(
             [sys.executable, str(SCRIPT), "0" * 32, "--project-root", "relative/path"],
-            capture_output=True, text=True, env=self.env(),
+            capture_output=True,
+            text=True,
+            env=self.env(),
         )
         self.assertEqual(completed.returncode, 2)
 
     def test_missing_project_root_is_exit_2(self):
         completed = subprocess.run(
-            [sys.executable, str(SCRIPT), "0" * 32], capture_output=True, text=True, env=self.env(),
+            [sys.executable, str(SCRIPT), "0" * 32],
+            capture_output=True,
+            text=True,
+            env=self.env(),
         )
         self.assertEqual(completed.returncode, 2)
 
     def test_unknown_option_is_exit_2(self):
         completed = subprocess.run(
-            [sys.executable, str(SCRIPT), "0" * 32, "--project-root", str(self.root), "--bogus"],
-            capture_output=True, text=True, env=self.env(),
+            [
+                sys.executable,
+                str(SCRIPT),
+                "0" * 32,
+                "--project-root",
+                str(self.root),
+                "--bogus",
+            ],
+            capture_output=True,
+            text=True,
+            env=self.env(),
         )
         self.assertEqual(completed.returncode, 2)
 

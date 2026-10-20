@@ -10,7 +10,7 @@ DES-087 のモジュール表 W-4（終了を確かめる）・W-7（終了の�
 - ai_check: 印が無い・壊れている・内容が違う・作業領域が無いとき 1、正常なとき 0
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_ai_finish_check -v
+  python3 -m unittest tests.test_ai_finish_check -v
 """
 
 import importlib.util
@@ -36,7 +36,9 @@ class FinishTest(support.AiTestCase):
         self.add(iid, VALUE_A)
         code, payload, _, _ = self.run_script("ai_finish.py", iid)
         self.assertEqual((code, payload), (0, {}))
-        self.assertEqual(json.loads(self.done_path(iid).read_text(encoding="utf-8")), {"exit": "0"})
+        self.assertEqual(
+            json.loads(self.done_path(iid).read_text(encoding="utf-8")), {"exit": "0"}
+        )
 
     def test_writes_done_mark_when_nothing_was_reported(self):
         iid = self.make_workspace()
@@ -54,7 +56,9 @@ class FinishTest(support.AiTestCase):
         self.assertTrue(payload["errors"])
         self.assertFalse(self.done_path(iid).exists())
 
-    def test_refused_after_two_rejections_even_if_earlier_candidates_were_accepted(self):
+    def test_refused_after_two_rejections_even_if_earlier_candidates_were_accepted(
+        self,
+    ):
         iid = self.make_workspace()
         self.add(iid, VALUE_A)
         self.reject_once(iid)
@@ -84,7 +88,9 @@ class FinishTest(support.AiTestCase):
         code, payload, _, _ = self.run_script("ai_finish.py", iid)
         self.assertEqual(code, 1)
         self.assertTrue(payload["errors"])
-        self.assertEqual(json.loads(self.done_path(iid).read_text(encoding="utf-8")), {"exit": "0"})
+        self.assertEqual(
+            json.loads(self.done_path(iid).read_text(encoding="utf-8")), {"exit": "0"}
+        )
 
     def test_missing_workspace_exits_1(self):
         code, payload, _, _ = self.run_script("ai_finish.py", "a" * 32)
@@ -137,7 +143,9 @@ class CheckTest(support.AiTestCase):
         for content in ({"exit": "1"}, {"exit": "0", "extra": 1}, {}, [], "0"):
             with self.subTest(content=content):
                 iid = self.make_workspace()
-                (self.place(iid) / "ai_done.json").write_text(json.dumps(content), encoding="utf-8")
+                (self.place(iid) / "ai_done.json").write_text(
+                    json.dumps(content), encoding="utf-8"
+                )
                 code, _, _, _ = self.run_script("ai_check.py", iid)
                 self.assertEqual(code, 1)
 

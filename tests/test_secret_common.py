@@ -6,7 +6,7 @@
   （対象の解決とパターン検出の import の連鎖を負わないため）
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_secret_common -v
+  python3 -m unittest tests.test_secret_common -v
 """
 
 import argparse
@@ -17,8 +17,11 @@ import unittest
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
@@ -45,7 +48,10 @@ class ImportIndependenceTest(unittest.TestCase):
             "print(' '.join(sorted(sys.modules)))"
         )
         result = subprocess.run(
-            [sys.executable, "-I", "-c", code], capture_output=True, text=True, check=True
+            [sys.executable, "-I", "-c", code],
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return set(result.stdout.split())
 
@@ -102,12 +108,16 @@ class ScriptIndependenceTest(unittest.TestCase):
     def test_no_path_into_other_forge_directories(self):
         for path in self.files:
             code_lines = [
-                line for line in path.read_text(encoding="utf-8").splitlines()
+                line
+                for line in path.read_text(encoding="utf-8").splitlines()
                 if not line.lstrip().startswith("#")
             ]
             with self.subTest(script=path.name):
                 self.assertFalse(
-                    any("plugins/forge" in line or "plugins\" / \"forge" in line for line in code_lines)
+                    any(
+                        "plugins/forge" in line or 'plugins" / "forge' in line
+                        for line in code_lines
+                    )
                 )
 
 

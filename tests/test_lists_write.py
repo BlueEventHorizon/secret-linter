@@ -14,7 +14,7 @@
 ~/.project-secret.yaml を読まない・書かない。入力は明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_lists_write -v
+  python3 -m unittest tests.test_lists_write -v
 """
 
 import os
@@ -25,8 +25,11 @@ import unittest
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
@@ -51,7 +54,7 @@ class ListsWriteTestCase(unittest.TestCase):
         return self.home / ".project-secret.yaml"
 
     def allow_file(self):
-        return self.root / ".forge" / "secret_allowlist.yaml"
+        return self.root / ".secret-linter" / "allowlist.yaml"
 
     def leftovers(self, directory):
         return sorted(p.name for p in directory.iterdir() if p.name.endswith(".tmp"))
@@ -62,7 +65,10 @@ class AppendTest(ListsWriteTestCase):
         count = lists.append_secret_names([VALUE_A, VALUE_B], home=self.home)
         self.assertEqual(count, 2)
         self.assertEqual(lists.load_secret_names(self.home), [VALUE_A, VALUE_B])
-        self.assertEqual(self.names_file().read_text(encoding="utf-8"), f'- "{VALUE_A}"\n- "{VALUE_B}"\n')
+        self.assertEqual(
+            self.names_file().read_text(encoding="utf-8"),
+            f'- "{VALUE_A}"\n- "{VALUE_B}"\n',
+        )
 
     def test_appends_to_project_allowlist_and_reads_back(self):
         self.assertEqual(lists.append_project_allowlist(self.root, [VALUE_A]), 1)
@@ -77,27 +83,33 @@ class AppendTest(ListsWriteTestCase):
         text = self.names_file().read_text(encoding="utf-8")
         self.assertTrue(text.startswith(original))
         self.assertEqual(text, original + f'- "{VALUE_A}"\n')
-        self.assertEqual(lists.load_secret_names(self.home), ["first-item", VALUE_B, VALUE_A])
+        self.assertEqual(
+            lists.load_secret_names(self.home), ["first-item", VALUE_B, VALUE_A]
+        )
 
     def test_existing_indent_is_followed(self):
         self.names_file().write_text("# c\n  - one\n  - two\n", encoding="utf-8")
         lists.append_secret_names([VALUE_A], home=self.home)
         self.assertEqual(
-            self.names_file().read_text(encoding="utf-8"), f'# c\n  - one\n  - two\n  - "{VALUE_A}"\n'
+            self.names_file().read_text(encoding="utf-8"),
+            f'# c\n  - one\n  - two\n  - "{VALUE_A}"\n',
         )
         self.assertEqual(lists.load_secret_names(self.home), ["one", "two", VALUE_A])
 
     def test_file_without_trailing_newline(self):
         self.names_file().write_text("- one", encoding="utf-8")
         lists.append_secret_names([VALUE_A], home=self.home)
-        self.assertEqual(self.names_file().read_text(encoding="utf-8"), f'- one\n- "{VALUE_A}"\n')
+        self.assertEqual(
+            self.names_file().read_text(encoding="utf-8"), f'- one\n- "{VALUE_A}"\n'
+        )
 
     def test_crlf_and_bom_are_kept(self):
         original = "﻿# comment\r\n- one\r\n"
         self.names_file().write_bytes(original.encode("utf-8"))
         lists.append_secret_names([VALUE_A], home=self.home)
         self.assertEqual(
-            self.names_file().read_bytes(), (original + f'- "{VALUE_A}"\r\n').encode("utf-8")
+            self.names_file().read_bytes(),
+            (original + f'- "{VALUE_A}"\r\n').encode("utf-8"),
         )
         self.assertEqual(lists.load_secret_names(self.home), ["one", VALUE_A])
 
@@ -109,11 +121,21 @@ class AppendTest(ListsWriteTestCase):
     def test_value_with_double_quote_uses_single_quotes(self):
         value = 'say "hi" ' + VALUE_A
         lists.append_secret_names([value], home=self.home)
-        self.assertEqual(self.names_file().read_text(encoding="utf-8"), f"- '{value}'\n")
+        self.assertEqual(
+            self.names_file().read_text(encoding="utf-8"), f"- '{value}'\n"
+        )
         self.assertEqual(lists.load_secret_names(self.home), [value])
 
     def test_values_that_look_like_other_syntax_round_trip(self):
-        values = ["# not a comment", "*.example.invalid", "key: value", "- nested", "[flow]", "a #b", "  padded  "]
+        values = [
+            "# not a comment",
+            "*.example.invalid",
+            "key: value",
+            "- nested",
+            "[flow]",
+            "a #b",
+            "  padded  ",
+        ]
         lists.append_secret_names(values, home=self.home)
         self.assertEqual(lists.load_secret_names(self.home), values)
 
@@ -140,7 +162,9 @@ class DuplicateTest(ListsWriteTestCase):
         self.assertEqual(self.names_file().stat().st_mtime_ns, before.st_mtime_ns)
 
     def test_duplicates_inside_one_call_are_appended_once(self):
-        self.assertEqual(lists.append_secret_names([VALUE_A, VALUE_A], home=self.home), 1)
+        self.assertEqual(
+            lists.append_secret_names([VALUE_A, VALUE_A], home=self.home), 1
+        )
         self.assertEqual(lists.load_secret_names(self.home), [VALUE_A])
 
     def test_value_is_appended_once_after_two_calls(self):
@@ -163,7 +187,7 @@ class CreateTest(ListsWriteTestCase):
         self.assertEqual(stat.S_IMODE(self.names_file().stat().st_mode), 0o600)
 
     def test_missing_project_allowlist_and_directory_are_created(self):
-        self.assertFalse((self.root / ".forge").exists())
+        self.assertFalse((self.root / ".secret-linter").exists())
         lists.append_project_allowlist(self.root, [VALUE_A])
         self.assertEqual(lists.load_project_allowlist(self.root), [VALUE_A])
         self.assertEqual(stat.S_IMODE(self.allow_file().stat().st_mode), 0o644)
@@ -179,8 +203,10 @@ class CreateTest(ListsWriteTestCase):
         lists.append_secret_names([VALUE_B], home=self.home)
         lists.append_project_allowlist(self.root, [VALUE_A])
         self.assertEqual(self.leftovers(self.home), [])
-        self.assertEqual(self.leftovers(self.root / ".forge"), [])
-        self.assertEqual(sorted(p.name for p in self.home.iterdir()), [".project-secret.yaml"])
+        self.assertEqual(self.leftovers(self.root / ".secret-linter"), [])
+        self.assertEqual(
+            sorted(p.name for p in self.home.iterdir()), [".project-secret.yaml"]
+        )
 
     def test_symlinked_file_is_updated_through_the_link(self):
         real = self.root / "real-list.yaml"
@@ -188,12 +214,14 @@ class CreateTest(ListsWriteTestCase):
         os.symlink(real, self.names_file())
         lists.append_secret_names([VALUE_A], home=self.home)
         self.assertTrue(self.names_file().is_symlink())
-        self.assertEqual(lists.parse_list(real.read_text(encoding="utf-8"), "x"), ["one", VALUE_A])
+        self.assertEqual(
+            lists.parse_list(real.read_text(encoding="utf-8"), "x"), ["one", VALUE_A]
+        )
 
 
 class RejectTest(ListsWriteTestCase):
     def test_unrepresentable_values_raise_without_the_value_and_write_nothing(self):
-        both_quotes = "a\"b" + "'c"
+        both_quotes = 'a"b' + "'c"
         cases = {
             "empty": "",
             "newline": "line1\nline2",
@@ -215,7 +243,9 @@ class RejectTest(ListsWriteTestCase):
             lists.append_secret_names([None], home=self.home)
         self.assertFalse(self.names_file().exists())
 
-    def test_invalid_existing_list_raises_with_line_number_only_and_keeps_the_file(self):
+    def test_invalid_existing_list_raises_with_line_number_only_and_keeps_the_file(
+        self,
+    ):
         leaked = "SENTINEL-" + "LINE-CONTENT"
         original = f"- ok\nkey: {leaked}\n"
         self.names_file().write_text(original, encoding="utf-8")
@@ -237,7 +267,10 @@ class RejectTest(ListsWriteTestCase):
             lists.append_project_allowlist(self.root, [VALUE_A])
         self.assertEqual(self.allow_file().read_text(encoding="utf-8"), original)
 
-    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root は書き込み権限の拒否を再現できない")
+    @unittest.skipIf(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        "root は書き込み権限の拒否を再現できない",
+    )
     def test_unwritable_directory_raises_write_error_without_the_value(self):
         directory = self.root / "locked"
         directory.mkdir()
@@ -261,7 +294,13 @@ class RejectTest(ListsWriteTestCase):
 
 class CheckRepresentableTest(ListsWriteTestCase):
     def test_representable_values_pass(self):
-        for value in (VALUE_A, VALUE_C, "https://" + VALUE_A + "/path?x=1", "a'b", 'a"b'):
+        for value in (
+            VALUE_A,
+            VALUE_C,
+            "https://" + VALUE_A + "/path?x=1",
+            "a'b",
+            'a"b',
+        ):
             with self.subTest(value=value):
                 lists.check_representable(value, "x")
 

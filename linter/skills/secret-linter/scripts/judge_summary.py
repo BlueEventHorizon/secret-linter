@@ -41,7 +41,8 @@ def build_summary(result, candidates, units, suppressed, skipped):
         "class": result["class"],
         "confirm": [
             _confirm_entry(by_id[r["candidate_id"]], labels)
-            for r in result["candidates"] if r["class"] == judgment.CONFIRM
+            for r in result["candidates"]
+            if r["class"] == judgment.CONFIRM
         ],
         "pass_count": classes.count(judgment.PASS),
         "fail_count": classes.count(judgment.FAIL),

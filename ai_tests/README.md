@@ -31,7 +31,7 @@ Agent は、合否も候補の区分も決めない。報告された値を区�
 
 ## 実行の手順
 
-リポジトリのルートの絶対パスを `{ルート}`、スクリプトの置き場を `{ルート}/plugins/forge/skills/secret-linter/scripts` と書く。コマンドは 1 つずつ実行する（複合コマンドにしない）。
+リポジトリのルートの絶対パスを `{ルート}`、スクリプトの置き場を `{ルート}/linter/skills/secret-linter/scripts` と書く。コマンドは 1 つずつ実行する（複合コマンドにしない）。
 
 ### S01・S02: Agent の検出
 
@@ -46,26 +46,26 @@ Agent は、合否も候補の区分も決めない。報告された値を区�
 2. ケースの入力を、`{複写先}` へ複写する。
 
    ```bash
-   cp "{ルート}/ai_tests/forge/secret-linter/cases/{ID}/input.md" "{複写先}/input.md"
+   cp "{ルート}/ai_tests/cases/{ID}/input.md" "{複写先}/input.md"
    ```
 
 3. 複写したファイルを検査単位にして、作業領域を作る。標準出力の `inspection_id` が検査 ID である。`unit_count` が 1 であることを確かめる。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/scan.py" --project-root "{ルート}" --files "{複写先}/input.md"
+   python3 "{ルート}/linter/skills/secret-linter/scripts/scan.py" --project-root "{ルート}" --files "{複写先}/input.md"
    ```
 
-4. Agent ツールで `forge:secret-reader` を起動する。prompt は検査 ID だけにする（他の説明・指示・ケースの内容を添えない）。完了通知を受けるまで先へ進まない。
+4. Agent ツールで `linter:secret-reader` を起動する。prompt は検査 ID だけにする（他の説明・指示・ケースの内容を添えない）。完了通知を受けるまで先へ進まない。
 
 5. Agent の最終応答を読む。終えたことだけが述べられ、値・本文・件数・位置が含まれていないことを確かめる。
 
 6. 終了の印を確かめる。0 で終われば、Agent は正常に終えている。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/ai_check.py" {検査ID}
+   python3 "{ルート}/linter/skills/secret-linter/scripts/ai_check.py" {検査ID}
    ```
 
-7. 報告された候補を読む。作業領域の置き場は、OS の一時ディレクトリの下の `forge-secret-linter-{検査ID}/` である。OS の一時ディレクトリは次で得る。
+7. 報告された候補を読む。作業領域の置き場は、OS の一時ディレクトリの下の `secret-linter-{検査ID}/` である。OS の一時ディレクトリは次で得る。
 
    ```bash
    python3 -c "import tempfile; print(tempfile.gettempdir())"
@@ -78,7 +78,7 @@ Agent は、合否も候補の区分も決めない。報告された値を区�
 9. 後始末をする。作業領域を消し、複写先を削除する。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/cleanup.py" {検査ID}
+   python3 "{ルート}/linter/skills/secret-linter/scripts/cleanup.py" {検査ID}
    ```
 
    ```bash
@@ -92,13 +92,13 @@ Agent は起動しない。S01 の手順 1〜3 で作業領域を作ってから
 1. 検査単位の一覧のパスを得る。標準出力の `units_path` のファイルを Read し、`unit_id` を確かめる（以下では `U0001` とする。違えば読み替える）。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/ai_units.py" {検査ID}
+   python3 "{ルート}/linter/skills/secret-linter/scripts/ai_units.py" {検査ID}
    ```
 
 2. 本文に無い値を、引用符付きのヒアドキュメントで報告する。終了コードが 1 であること、標準出力の `errors` に値が含まれていないことを確かめる。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/ai_add.py" {検査ID} --unit-id U0001 --kind person_name <<'VALUE'
+   python3 "{ルート}/linter/skills/secret-linter/scripts/ai_add.py" {検査ID} --unit-id U0001 --kind person_name <<'VALUE'
    存在しないはずの名前
    VALUE
    ```
@@ -108,7 +108,7 @@ Agent は起動しない。S01 の手順 1〜3 で作業領域を作ってから
 4. 本文にある値（`テスト太郎`）を報告する。拒否が 2 回続いた後のため、本文にある値でも 1 で拒否され、何も書かれないことを確かめる。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/ai_add.py" {検査ID} --unit-id U0001 --kind person_name <<'VALUE'
+   python3 "{ルート}/linter/skills/secret-linter/scripts/ai_add.py" {検査ID} --unit-id U0001 --kind person_name <<'VALUE'
    テスト太郎
    VALUE
    ```
@@ -116,13 +116,13 @@ Agent は起動しない。S01 の手順 1〜3 で作業領域を作ってから
 5. 終了の印を書こうとする。1 で拒否されることを確かめる。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/ai_finish.py" {検査ID}
+   python3 "{ルート}/linter/skills/secret-linter/scripts/ai_finish.py" {検査ID}
    ```
 
 6. 終了の印を確かめる。1 で終わり、検査を実行できなかったことになる。
 
    ```bash
-   python3 "{ルート}/plugins/forge/skills/secret-linter/scripts/ai_check.py" {検査ID}
+   python3 "{ルート}/linter/skills/secret-linter/scripts/ai_check.py" {検査ID}
    ```
 
 7. 作業領域の `ai_events/` に、拒否の記録が 2 件だけあり、`accepted` が無いこと、`ai_done.json` が無いことを確かめる。
@@ -140,4 +140,4 @@ Agent は起動しない。S01 の手順 1〜3 で作業領域を作ってから
 
 ## CI に入れない理由
 
-判定が揺れ、実行に費用がかかるため。CI のゲート（`tests/` の単体テスト）の対象に含めず、評価は手動で実行する。Agent の定義が持つ script の呼び方・語彙・禁止の記述は、`tests/forge/secret-linter/test_secret_reader_definition.py` が検証する。
+判定が揺れ、実行に費用がかかるため。CI のゲート（`tests/` の単体テスト）の対象に含めず、評価は手動で実行する。Agent の定義が持つ script の呼び方・語彙・禁止の記述は、`tests/test_secret_reader_definition.py` が検証する。

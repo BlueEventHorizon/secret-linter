@@ -8,7 +8,7 @@
 - 子プロセスで走らせる実行器（``argv(..., no_reserved=True)``）も、同じ状態で script を走らせる
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_vocab -v
+  python3 -m unittest tests.test_vocab -v
 """
 
 import json
@@ -23,15 +23,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import vocab  # noqa: E402
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import judgment  # noqa: E402
 import lists  # noqa: E402
 
-LISTS = lists.Lists(secret_names=[], bundled_allowlist=lists.load_bundled_allowlist(), project_allowlist=[])
+LISTS = lists.Lists(
+    secret_names=[],
+    bundled_allowlist=lists.load_bundled_allowlist(),
+    project_allowlist=[],
+)
 
 #: 語彙の種別と、その語を判定に掛けるときの候補の kind
 GROUPS = (
@@ -42,7 +49,14 @@ GROUPS = (
 
 
 def classify(kind, value):
-    candidate = {"candidate_id": "P0001", "source": "pattern", "unit_id": "U0001", "line": 1, "kind": kind, "value": value}
+    candidate = {
+        "candidate_id": "P0001",
+        "source": "pattern",
+        "unit_id": "U0001",
+        "line": 1,
+        "kind": kind,
+        "value": value,
+    }
     return judgment.classify(candidate, LISTS)
 
 
@@ -56,7 +70,9 @@ class VocabTest(unittest.TestCase):
         for kind, words in GROUPS:
             for word in words:
                 with self.subTest(kind=kind, word=word):
-                    self.assertEqual(classify(kind, word), (judgment.PASS, judgment.REASON_RESERVED))
+                    self.assertEqual(
+                        classify(kind, word), (judgment.PASS, judgment.REASON_RESERVED)
+                    )
 
     def test_every_word_is_confirm_inside_no_reserved(self):
         with vocab.no_reserved():
@@ -69,13 +85,34 @@ class VocabTest(unittest.TestCase):
         with vocab.no_reserved():
             for word in vocab.VOCAB_EMAILS:
                 with self.subTest(word=word):
-                    self.assertEqual(classify("email", word), (judgment.CONFIRM, judgment.REASON_EMAIL))
+                    self.assertEqual(
+                        classify("email", word),
+                        (judgment.CONFIRM, judgment.REASON_EMAIL),
+                    )
 
     def test_reserved_constants_are_restored_after_no_reserved(self):
-        before = (judgment.RESERVED_DOMAINS, judgment.RESERVED_TLDS, judgment.RESERVED_NETWORKS)
+        before = (
+            judgment.RESERVED_DOMAINS,
+            judgment.RESERVED_TLDS,
+            judgment.RESERVED_NETWORKS,
+        )
         with vocab.no_reserved():
-            self.assertEqual((judgment.RESERVED_DOMAINS, judgment.RESERVED_TLDS, judgment.RESERVED_NETWORKS), ((), (), ()))
-        self.assertEqual((judgment.RESERVED_DOMAINS, judgment.RESERVED_TLDS, judgment.RESERVED_NETWORKS), before)
+            self.assertEqual(
+                (
+                    judgment.RESERVED_DOMAINS,
+                    judgment.RESERVED_TLDS,
+                    judgment.RESERVED_NETWORKS,
+                ),
+                ((), (), ()),
+            )
+        self.assertEqual(
+            (
+                judgment.RESERVED_DOMAINS,
+                judgment.RESERVED_TLDS,
+                judgment.RESERVED_NETWORKS,
+            ),
+            before,
+        )
         self.assertTrue(all(before))
 
     def test_reserved_constants_are_restored_when_the_block_raises(self):
@@ -100,19 +137,28 @@ class RunnerTest(unittest.TestCase):
                 " bool(judgment.RESERVED_NETWORKS), sys.argv[1:]]))\n",
                 encoding="utf-8",
             )
-            for no_reserved, expected in ((True, [False, False, False]), (False, [True, True, True])):
+            for no_reserved, expected in (
+                (True, [False, False, False]),
+                (False, [True, True, True]),
+            ):
                 with self.subTest(no_reserved=no_reserved):
                     completed = subprocess.run(
-                        vocab.argv(script, "a", "--b", no_reserved=no_reserved), capture_output=True, text=True,
+                        vocab.argv(script, "a", "--b", no_reserved=no_reserved),
+                        capture_output=True,
+                        text=True,
                     )
                     self.assertEqual(completed.returncode, 0, completed.stderr)
-                    self.assertEqual(json.loads(completed.stdout), [*expected, ["a", "--b"]])
+                    self.assertEqual(
+                        json.loads(completed.stdout), [*expected, ["a", "--b"]]
+                    )
 
     def test_runner_propagates_the_exit_code(self):
         with tempfile.TemporaryDirectory() as tmp:
             script = Path(tmp) / "exit3.py"
             script.write_text("import sys\nsys.exit(3)\n", encoding="utf-8")
-            completed = subprocess.run(vocab.argv(script, no_reserved=True), capture_output=True, text=True)
+            completed = subprocess.run(
+                vocab.argv(script, no_reserved=True), capture_output=True, text=True
+            )
             self.assertEqual(completed.returncode, 3)
 
 

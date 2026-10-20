@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""``plugins/forge/agents/secret-reader.md`` の契約テスト。
+"""``linter/agents/secret-reader.md`` の契約テスト。
 
 定義が持つ script の呼び方が、``ai_units.py``・``ai_add.py``・``ai_finish.py`` の実際の引数と一致すること、
 他の script が現れないこと、``--kind`` の語彙が ``ai_add.py`` の選択肢と一致すること、
 候補の区分を決める指示が無いこと、最終応答に値を含めない指示があること、
 プロジェクト文書（ID・パス）を参照していないことを確かめる。
-Claude Code の実 Agent 起動は unittest の検証対象にしない（手動テスト ``ai_tests/forge/secret-linter/``）。
+Claude Code の実 Agent 起動は unittest の検証対象にしない（手動テスト ``ai_tests/``）。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_secret_reader_definition -v
+  python3 -m unittest tests.test_secret_reader_definition -v
 """
 
 import importlib.util
@@ -18,13 +18,14 @@ import unittest
 from pathlib import Path
 
 _support_spec = importlib.util.spec_from_file_location(
-    "secret_linter_ai_support_for_definition", Path(__file__).resolve().parent / "ai_support.py"
+    "secret_linter_ai_support_for_definition",
+    Path(__file__).resolve().parent / "ai_support.py",
 )
 support = importlib.util.module_from_spec(_support_spec)
 _support_spec.loader.exec_module(support)
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-PLUGIN_ROOT = REPO_ROOT / "plugins" / "forge"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PLUGIN_ROOT = REPO_ROOT / "linter"
 AGENT_PATH = PLUGIN_ROOT / "agents" / "secret-reader.md"
 SCRIPTS_DIR = support.SCRIPTS_DIR
 
@@ -66,9 +67,15 @@ class SecretReaderDefinitionTest(support.AiTestCase):
     def _run_documented(self, commands, name, inspection_id, stdin="", **kwargs):
         argv = self._argv(commands[name], inspection_id, **kwargs)
         script_path = Path(argv[0])
-        self.assertEqual(script_path.parent, SCRIPTS_DIR, f"{name}: 呼ぶ script の置き場が実在の場所と違う")
+        self.assertEqual(
+            script_path.parent,
+            SCRIPTS_DIR,
+            f"{name}: 呼ぶ script の置き場が実在の場所と違う",
+        )
         self.assertTrue(script_path.is_file(), f"{name}: script が実在しない")
-        code, payload, stdout, _ = self.run_script(script_path.name, *argv[1:], stdin=stdin)
+        code, payload, stdout, _ = self.run_script(
+            script_path.name, *argv[1:], stdin=stdin
+        )
         return code, payload
 
     def test_documents_exactly_the_three_allowed_scripts(self):
@@ -82,7 +89,13 @@ class SecretReaderDefinitionTest(support.AiTestCase):
         self.assertTrue(Path(payload["units_path"]).is_file())
         # 値は標準入力で渡す。定義の呼び方（位置引数・--unit-id・--line・--kind）で受理される
         code, payload = self._run_documented(
-            commands, "ai_add", iid, stdin=support.VALUE_A + "\n", unit_id="U0001", kind="person_name", row="2"
+            commands,
+            "ai_add",
+            iid,
+            stdin=support.VALUE_A + "\n",
+            unit_id="U0001",
+            kind="person_name",
+            row="2",
         )
         self.assertEqual((code, payload), (0, {"accepted_count": 1}))
         code, payload = self._run_documented(commands, "ai_finish", iid)
@@ -96,9 +109,13 @@ class SecretReaderDefinitionTest(support.AiTestCase):
     def test_kind_vocabulary_matches_ai_add(self):
         # ai_add.py を import せず（他テストの import 状態に触れない）、ソースの KINDS 定義から読む
         source = (SCRIPTS_DIR / "ai_add.py").read_text(encoding="utf-8")
-        kinds_literal = re.search(r"^KINDS = \(([^)]*)\)", source, re.MULTILINE).group(1)
+        kinds_literal = re.search(r"^KINDS = \(([^)]*)\)", source, re.MULTILINE).group(
+            1
+        )
         script_kinds = set(re.findall(r'"([a-z_]+)"', kinds_literal))
-        section = self.text.split("`--kind` は次のいずれかである:", 1)[1].split("\n", 1)[0]
+        section = self.text.split("`--kind` は次のいずれかである:", 1)[1].split(
+            "\n", 1
+        )[0]
         documented = set(re.findall(r"`([a-z_]+)`（", section))
         self.assertEqual(documented, script_kinds)
 
@@ -122,7 +139,9 @@ class SecretReaderDefinitionTest(support.AiTestCase):
         self.assertIn("対象のファイルを作成、編集、削除しない", self.text)
 
     def test_readable_docs_referenced_by_the_definition_exist(self):
-        for relative in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}/(docs/[A-Za-z0-9_/]+\.md)", self.text):
+        for relative in re.findall(
+            r"\$\{CLAUDE_PLUGIN_ROOT\}/(docs/[A-Za-z0-9_/]+\.md)", self.text
+        ):
             self.assertTrue((PLUGIN_ROOT / relative).is_file(), relative)
 
 

@@ -106,7 +106,9 @@ def resolve_dirs(project_root, dirs):
             f"指定されたディレクトリが見つかりません: {', '.join(missing)}"
         )
     try:
-        files = git_targets.get_dir_targets(project_root, [d.rstrip("/") or d for d in dirs])
+        files = git_targets.get_dir_targets(
+            project_root, [d.rstrip("/") or d for d in dirs]
+        )
     except RuntimeError as exc:
         raise TargetError(str(exc)) from exc
     except UnicodeDecodeError as exc:

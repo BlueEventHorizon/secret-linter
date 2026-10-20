@@ -17,7 +17,7 @@
 | 回答          | 意味                           | 動作                                                                        |
 | ------------- | ------------------------------ | --------------------------------------------------------------------------- |
 | ``secret``      | 機密である                     | 機密の名前リスト（``~/.project-secret.yaml``）へ、その候補の値を追記する     |
-| ``public-keep`` | 公開してよい（残す）           | プロジェクトの許可リスト（``.forge/secret_allowlist.yaml``）へ、値を追記する |
+| ``public-keep`` | 公開してよい（残す）           | プロジェクトの許可リスト（``.secret-linter/allowlist.yaml``）へ、値を追記する |
 | ``public-once`` | 公開してよい（今回だけ）       | どのリストにも追記しない。判定ファイルの ``reason`` に記録し、後続の呼び出しへ引き継ぐ |
 
 - メールアドレス（``kind`` が ``email``、または値全体がメールアドレスの形のもの。AI の候補を含む）も、
@@ -96,8 +96,12 @@ class AnswerError(Exception):
 def build_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("inspection_id")
-    parser.add_argument("--project-root", required=True, type=secret_common.absolute_path)
-    parser.add_argument("--answer", action="append", required=True, metavar="CANDIDATE_ID=ANSWER")
+    parser.add_argument(
+        "--project-root", required=True, type=secret_common.absolute_path
+    )
+    parser.add_argument(
+        "--answer", action="append", required=True, metavar="CANDIDATE_ID=ANSWER"
+    )
     return parser
 
 
@@ -108,7 +112,9 @@ def _parse_answers(raw_answers):
     for number, raw in enumerate(raw_answers, start=1):
         candidate_id, separator, answer = raw.partition("=")
         if not separator or not candidate_id:
-            raise AnswerError(f"{number} 番目の --answer の形式が「候補ID=回答」ではありません")
+            raise AnswerError(
+                f"{number} 番目の --answer の形式が「候補ID=回答」ではありません"
+            )
         if answer not in ANSWERS:
             raise AnswerError(
                 f"{number} 番目の --answer の回答が選択肢にありません（{' / '.join(ANSWERS)} のいずれか）"
@@ -133,7 +139,9 @@ def _plan_writes(answers, candidates, previous):
         if candidate is None:
             raise AnswerError("実在しない候補 ID への回答があります")
         if latest.get(candidate_id) != judgment.CONFIRM:
-            raise AnswerError(f"候補 {candidate_id} は要確認ではないため、回答できません")
+            raise AnswerError(
+                f"候補 {candidate_id} は要確認ではないため、回答できません"
+            )
         if answer == ANSWER_PUBLIC_ONCE:
             once_ids.append(candidate_id)
             continue
@@ -149,9 +157,13 @@ def _plan_writes(answers, candidates, previous):
         if answer == ANSWER_SECRET:
             matched = judgment.matches_secret_name(value, [value])
         else:
-            matched = judgment.allowlist_reason(value, _EMPTY_BUNDLED, [value]) is not None
+            matched = (
+                judgment.allowlist_reason(value, _EMPTY_BUNDLED, [value]) is not None
+            )
         if not matched:
-            raise AnswerError(f"候補 {candidate_id} の値は、追記しても判定の規則で一致しないため、追記できません")
+            raise AnswerError(
+                f"候補 {candidate_id} の値は、追記しても判定の規則で一致しないため、追記できません"
+            )
         target.append(value)
     return secret_values, allow_values, once_ids
 
@@ -168,21 +180,33 @@ def cmd_answer(args):
     inspection_id = args.inspection_id
     try:
         answers = _parse_answers(args.answer)
-        candidates, suppressed, units, skipped, previous = inspection_input.read_inputs_following_judgment(
-            inspection_id
+        candidates, suppressed, units, skipped, previous = (
+            inspection_input.read_inputs_following_judgment(inspection_id)
         )
-        lists.load_all(args.project_root)  # 既存のリストの形式を、何かを書く前に検査する
-        secret_values, allow_values, once_ids = _plan_writes(answers, candidates, previous)
+        lists.load_all(
+            args.project_root
+        )  # 既存のリストの形式を、何かを書く前に検査する
+        secret_values, allow_values, once_ids = _plan_writes(
+            answers, candidates, previous
+        )
         _record(secret_values, allow_values, args.project_root)
-        result = judgment.rejudge(candidates, lists.load_all(args.project_root), previous, once_ids)
+        result = judgment.rejudge(
+            candidates, lists.load_all(args.project_root), previous, once_ids
+        )
         workspace.write_next(inspection_id, "judgment", result)
     except (
-        AnswerError, inspection_input.InputError, workspace.WorkspaceError, judgment.JudgmentError,
-        lists.ListFormatError, lists.ListWriteError,
+        AnswerError,
+        inspection_input.InputError,
+        workspace.WorkspaceError,
+        judgment.JudgmentError,
+        lists.ListFormatError,
+        lists.ListWriteError,
     ) as exc:
         return secret_common.error(str(exc))
 
-    secret_common.emit(judge_summary.build_summary(result, candidates, units, suppressed, skipped))
+    secret_common.emit(
+        judge_summary.build_summary(result, candidates, units, suppressed, skipped)
+    )
     return 0
 
 

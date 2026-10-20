@@ -19,11 +19,16 @@ from pathlib import Path
 from unittest import mock
 
 SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 
-_spec = importlib.util.spec_from_file_location("secret_linter_workspace_for_ai_tests", SCRIPTS_DIR / "workspace.py")
+_spec = importlib.util.spec_from_file_location(
+    "secret_linter_workspace_for_ai_tests", SCRIPTS_DIR / "workspace.py"
+)
 workspace = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(workspace)
 
@@ -70,14 +75,26 @@ class AiTestCase(unittest.TestCase):
         """U0001（file）・U0002（added_lines）・U0003（commit_message）を持つ作業領域を作り、検査 ID を返す。"""
         inspection_id = workspace.create()
         units = [
-            {"unit_id": "U0001", "kind": "file", "label": "a.txt", "text_path": self.body("a.txt", FILE_TEXT)},
             {
-                "unit_id": "U0002", "kind": "added_lines", "label": "b.txt", "commit": "COMMIT-ID-1",
-                "text_path": self.body("b.txt", ADDED_TEXT), "line_numbers": ADDED_LINE_NUMBERS,
+                "unit_id": "U0001",
+                "kind": "file",
+                "label": "a.txt",
+                "text_path": self.body("a.txt", FILE_TEXT),
             },
             {
-                "unit_id": "U0003", "kind": "commit_message", "label": "コミットメッセージ",
-                "commit": "COMMIT-ID-2", "text_path": self.body("c.txt", COMMIT_TEXT),
+                "unit_id": "U0002",
+                "kind": "added_lines",
+                "label": "b.txt",
+                "commit": "COMMIT-ID-1",
+                "text_path": self.body("b.txt", ADDED_TEXT),
+                "line_numbers": ADDED_LINE_NUMBERS,
+            },
+            {
+                "unit_id": "U0003",
+                "kind": "commit_message",
+                "label": "コミットメッセージ",
+                "commit": "COMMIT-ID-2",
+                "text_path": self.body("c.txt", COMMIT_TEXT),
             },
         ]
         workspace.write(inspection_id, "units.json", {"units": units, "skipped": []})
@@ -91,12 +108,17 @@ class AiTestCase(unittest.TestCase):
         directory = self.place(inspection_id) / "ai_events"
         if not directory.is_dir():
             return []
-        return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(directory.glob("*.json"))]
+        return [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted(directory.glob("*.json"))
+        ]
 
     def run_script(self, script, *args, stdin=""):
         completed = subprocess.run(
             [sys.executable, str(SCRIPTS_DIR / script), *args],
-            input=stdin.encode("utf-8"), capture_output=True, env=self.env(),
+            input=stdin.encode("utf-8"),
+            capture_output=True,
+            env=self.env(),
         )
         stdout = completed.stdout.decode("utf-8")
         payload = json.loads(stdout) if stdout.strip() else None

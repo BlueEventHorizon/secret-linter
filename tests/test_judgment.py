@@ -15,7 +15,7 @@
 （プライベート IP・会社名のヒント・予約値に近い別名）だけ、実行時に組み立てる（vocab.py）。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_judgment -v
+  python3 -m unittest tests.test_judgment -v
 """
 
 import sys
@@ -23,8 +23,11 @@ import unittest
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
@@ -49,14 +52,23 @@ GITHUB_ROOT = "github.com"
 
 def make_lists(secret_names=(), project=(), full=(), host_only=(), package_prefixes=()):
     return lists.Lists(
-        bundled_allowlist=lists.BundledAllowlist(list(full), list(host_only), list(package_prefixes)),
+        bundled_allowlist=lists.BundledAllowlist(
+            list(full), list(host_only), list(package_prefixes)
+        ),
         project_allowlist=list(project),
         secret_names=list(secret_names),
     )
 
 
 def cand(kind, value, cid="P0001"):
-    return {"candidate_id": cid, "source": "pattern", "unit_id": "U0001", "line": 1, "kind": kind, "value": value}
+    return {
+        "candidate_id": cid,
+        "source": "pattern",
+        "unit_id": "U0001",
+        "line": 1,
+        "kind": kind,
+        "value": value,
+    }
 
 
 def classify(kind, value, **list_args):
@@ -67,14 +79,24 @@ class OrderTest(unittest.TestCase):
     def test_secret_name_wins_over_allowlist(self):
         value = "docs." + CORP
         with vocab.no_reserved():
-            cls, reason = classify("domain", value, secret_names=[CORP], project=[value])
+            cls, reason = classify(
+                "domain", value, secret_names=[CORP], project=[value]
+            )
         self.assertEqual((cls, reason), (FAIL, judgment.REASON_NAME_LIST))
 
     def test_secret_name_wins_over_reserved_value(self):
-        self.assertEqual(classify("domain", "www.example.com", secret_names=["www.example.com"])[0], FAIL)
+        self.assertEqual(
+            classify("domain", "www.example.com", secret_names=["www.example.com"])[0],
+            FAIL,
+        )
 
     def test_secret_name_wins_over_confirm_kind(self):
-        self.assertEqual(classify("high_entropy", "PLACEHOLDERVALUE", secret_names=["placeholdervalue"])[0], FAIL)
+        self.assertEqual(
+            classify(
+                "high_entropy", "PLACEHOLDERVALUE", secret_names=["placeholdervalue"]
+            )[0],
+            FAIL,
+        )
 
     def test_fail_kind_is_fail_even_if_allowlisted_or_reserved(self):
         for kind in sorted(judgment.FAIL_KINDS):
@@ -97,13 +119,19 @@ class OrderTest(unittest.TestCase):
         with vocab.no_reserved():
             for item in (DOCS, "example.com"):
                 with self.subTest(item=item):
-                    self.assertEqual(classify("email", EMAIL, project=[item]), (CONFIRM, judgment.REASON_EMAIL))
+                    self.assertEqual(
+                        classify("email", EMAIL, project=[item]),
+                        (CONFIRM, judgment.REASON_EMAIL),
+                    )
 
     def test_email_is_confirm_with_wildcard_item_in_project_allowlist(self):
         with vocab.no_reserved():
             for item in ("*." + DOCS, "*.example.com"):
                 with self.subTest(item=item):
-                    self.assertEqual(classify("email", EMAIL, project=[item]), (CONFIRM, judgment.REASON_EMAIL))
+                    self.assertEqual(
+                        classify("email", EMAIL, project=[item]),
+                        (CONFIRM, judgment.REASON_EMAIL),
+                    )
 
     def test_email_item_does_not_pass_other_email(self):
         with vocab.no_reserved():
@@ -113,15 +141,25 @@ class OrderTest(unittest.TestCase):
     def test_email_item_does_not_pass_domain_candidate(self):
         # 逆の方向は起こさない。メールの項目は、そのドメインの候補を通さない
         with vocab.no_reserved():
-            for kind, value in (("domain", DOCS), ("domain", "https://" + DOCS + "/x"), ("internal_host", DOCS)):
+            for kind, value in (
+                ("domain", DOCS),
+                ("domain", "https://" + DOCS + "/x"),
+                ("internal_host", DOCS),
+            ):
                 with self.subTest(kind=kind, value=value):
-                    self.assertEqual(classify(kind, value, project=[EMAIL]), (CONFIRM, judgment.REASON_CONFIRM_KIND))
+                    self.assertEqual(
+                        classify(kind, value, project=[EMAIL]),
+                        (CONFIRM, judgment.REASON_CONFIRM_KIND),
+                    )
 
     def test_email_allowlist_match_is_case_sensitive(self):
         with vocab.no_reserved():
             for item in (EMAIL.upper(), "Someone@docs.example.com"):
                 with self.subTest(item=item):
-                    self.assertEqual(classify("email", EMAIL, project=[item]), (CONFIRM, judgment.REASON_EMAIL))
+                    self.assertEqual(
+                        classify("email", EMAIL, project=[item]),
+                        (CONFIRM, judgment.REASON_EMAIL),
+                    )
 
     def test_email_is_confirm_even_if_bundled_domain(self):
         with vocab.no_reserved():
@@ -130,7 +168,9 @@ class OrderTest(unittest.TestCase):
 
     def test_secret_name_wins_over_email_allowlist(self):
         with vocab.no_reserved():
-            cls, reason = classify("email", EMAIL, secret_names=[EMAIL], project=[EMAIL])
+            cls, reason = classify(
+                "email", EMAIL, secret_names=[EMAIL], project=[EMAIL]
+            )
         self.assertEqual((cls, reason), (FAIL, judgment.REASON_NAME_LIST))
 
     def test_email_shaped_value_of_another_kind_follows_the_email_rule(self):
@@ -138,27 +178,53 @@ class OrderTest(unittest.TestCase):
         # 完全一致の項目があれば通過し、無ければ要確認にする
         for kind in ("person_name", "company_name", "resource_name", "other_ai"):
             with self.subTest(kind=kind), vocab.no_reserved():
-                self.assertEqual(classify(kind, EMAIL, project=[EMAIL]), (PASS, judgment.REASON_ALLOW_PROJECT))
-                self.assertEqual(classify(kind, EMAIL, project=[DOCS]), (CONFIRM, judgment.REASON_EMAIL))
-                self.assertEqual(classify(kind, EMAIL), (CONFIRM, judgment.REASON_EMAIL))
+                self.assertEqual(
+                    classify(kind, EMAIL, project=[EMAIL]),
+                    (PASS, judgment.REASON_ALLOW_PROJECT),
+                )
+                self.assertEqual(
+                    classify(kind, EMAIL, project=[DOCS]),
+                    (CONFIRM, judgment.REASON_EMAIL),
+                )
+                self.assertEqual(
+                    classify(kind, EMAIL), (CONFIRM, judgment.REASON_EMAIL)
+                )
 
     def test_email_shaped_reserved_value_of_another_kind_is_pass(self):
-        self.assertEqual(classify("person_name", "someone@example.com"), (PASS, judgment.REASON_RESERVED))
+        self.assertEqual(
+            classify("person_name", "someone@example.com"),
+            (PASS, judgment.REASON_RESERVED),
+        )
 
     def test_is_email_candidate(self):
-        self.assertTrue(judgment.is_email_candidate({"kind": "email", "value": "not-checked"}))
-        self.assertTrue(judgment.is_email_candidate({"kind": "other_ai", "value": EMAIL}))
+        self.assertTrue(
+            judgment.is_email_candidate({"kind": "email", "value": "not-checked"})
+        )
+        self.assertTrue(
+            judgment.is_email_candidate({"kind": "other_ai", "value": EMAIL})
+        )
         for value in ("someone", "someone@localhost", "two@@" + DOCS, "a b@" + DOCS):
             with self.subTest(value=value):
-                self.assertFalse(judgment.is_email_candidate({"kind": "person_name", "value": value}))
+                self.assertFalse(
+                    judgment.is_email_candidate({"kind": "person_name", "value": value})
+                )
 
     def test_reserved_email_is_pass(self):
-        for value in ("someone@example.com", "x@mail.example.org", "x@corp.test", "x@localhost"):
+        for value in (
+            "someone@example.com",
+            "x@mail.example.org",
+            "x@corp.test",
+            "x@localhost",
+        ):
             with self.subTest(value=value):
-                self.assertEqual(classify("email", value), (PASS, judgment.REASON_RESERVED))
+                self.assertEqual(
+                    classify("email", value), (PASS, judgment.REASON_RESERVED)
+                )
 
     def test_reserved_value_is_pass(self):
-        self.assertEqual(classify("domain", "www.example.com"), (PASS, judgment.REASON_RESERVED))
+        self.assertEqual(
+            classify("domain", "www.example.com"), (PASS, judgment.REASON_RESERVED)
+        )
 
     def test_allowlisted_value_is_pass(self):
         with vocab.no_reserved():
@@ -181,7 +247,12 @@ class KindClassTest(unittest.TestCase):
 
     def test_fail_kinds(self):
         expected = {
-            "known_token", "private_key", "connection_string", "jwt", "secret_assignment", "password_prose",
+            "known_token",
+            "private_key",
+            "connection_string",
+            "jwt",
+            "secret_assignment",
+            "password_prose",
             "package_name",
         }
         self.assertEqual(judgment.FAIL_KINDS, expected)
@@ -190,39 +261,66 @@ class KindClassTest(unittest.TestCase):
 
     def test_package_name_is_fail(self):
         for value in (
-            vocab.domain("com", "foo", "bar"), vocab.domain("com", "foo", "bar", "dev"),
+            vocab.domain("com", "foo", "bar"),
+            vocab.domain("com", "foo", "bar", "dev"),
             vocab.domain("com", "foo", "bar", "MainActivity"),
         ):
             with self.subTest(value=value):
-                self.assertEqual(classify("package_name", value), (FAIL, judgment.REASON_FAIL_KIND))
+                self.assertEqual(
+                    classify("package_name", value), (FAIL, judgment.REASON_FAIL_KIND)
+                )
 
     def test_package_name_in_a_reserved_reverse_domain_is_pass(self):
         for value in (
-            "com.example.app", "com.example.app.dev", "com.example.app.MainActivity",
-            "net.example.app", "org.example.demo.Main", "COM.Example.App",
+            "com.example.app",
+            "com.example.app.dev",
+            "com.example.app.MainActivity",
+            "net.example.app",
+            "org.example.demo.Main",
+            "COM.Example.App",
         ):
             with self.subTest(value=value):
-                self.assertEqual(classify("package_name", value), (PASS, judgment.REASON_RESERVED))
+                self.assertEqual(
+                    classify("package_name", value), (PASS, judgment.REASON_RESERVED)
+                )
 
     def test_package_name_close_to_a_reserved_reverse_domain_is_fail(self):
         for value in (
-            vocab.domain("com", "examples", "app"), vocab.domain("com", "exampleapp", "main"),
-            vocab.domain("io", "example", "app"), vocab.domain("dev", "example", "app"),
+            vocab.domain("com", "examples", "app"),
+            vocab.domain("com", "exampleapp", "main"),
+            vocab.domain("io", "example", "app"),
+            vocab.domain("dev", "example", "app"),
             vocab.domain("com", "foo", "example", "app"),
         ):
             with self.subTest(value=value):
-                self.assertEqual(classify("package_name", value), (FAIL, judgment.REASON_FAIL_KIND))
+                self.assertEqual(
+                    classify("package_name", value), (FAIL, judgment.REASON_FAIL_KIND)
+                )
 
     def test_reserved_reverse_domain_does_not_pass_other_fail_kinds(self):
         self.assertEqual(classify("secret_assignment", "com.example.app")[0], FAIL)
 
     def test_secret_name_wins_over_a_reserved_reverse_domain(self):
-        self.assertEqual(classify("package_name", "com.example.app", secret_names=["com.example.app"])[0], FAIL)
+        self.assertEqual(
+            classify(
+                "package_name", "com.example.app", secret_names=["com.example.app"]
+            )[0],
+            FAIL,
+        )
 
     def test_confirm_kinds_when_nothing_matches(self):
         expected = {
-            "high_entropy", "company_hint", "obfuscated_host", "domain", "email", "private_ip", "internal_host",
-            "person_name", "company_name", "resource_name", "other_ai",
+            "high_entropy",
+            "company_hint",
+            "obfuscated_host",
+            "domain",
+            "email",
+            "private_ip",
+            "internal_host",
+            "person_name",
+            "company_name",
+            "resource_name",
+            "other_ai",
         }
         self.assertEqual(judgment.CONFIRM_KINDS, expected)
         for kind in expected:
@@ -236,15 +334,27 @@ class KindClassTest(unittest.TestCase):
 
     def test_non_string_value_raises(self):
         with self.assertRaises(judgment.JudgmentError):
-            judgment.classify({"candidate_id": "P0001", "kind": "domain", "value": None}, make_lists())
+            judgment.classify(
+                {"candidate_id": "P0001", "kind": "domain", "value": None}, make_lists()
+            )
 
 
 class ReservedValueTest(unittest.TestCase):
     def test_reserved_domains(self):
         for value in (
-            "example.com", "example.net", "example.org", "www.example.com", "a.b.example.org",
-            "EXAMPLE.COM", "foo.example", "foo.test", "foo.invalid", "foo.localhost", "localhost",
-            "https://api.example.com/v1?x=1", "user@example.net",
+            "example.com",
+            "example.net",
+            "example.org",
+            "www.example.com",
+            "a.b.example.org",
+            "EXAMPLE.COM",
+            "foo.example",
+            "foo.test",
+            "foo.invalid",
+            "foo.localhost",
+            "localhost",
+            "https://api.example.com/v1?x=1",
+            "user@example.net",
         ):
             with self.subTest(value=value):
                 self.assertTrue(judgment.is_reserved_value(value))
@@ -252,23 +362,47 @@ class ReservedValueTest(unittest.TestCase):
     def test_non_reserved_domains(self):
         for value in (
             # 予約値ではない別名は、予約値の形では表せないため組み立てる
-            vocab.domain("example", "co"), vocab.domain("example", "com", "other", "io"),
-            vocab.domain("notexample", "com"), vocab.domain("myexample", "org"), vocab.domain("test", "io"),
-            vocab.domain("localhost", "io"), "test", "invalid", "example", PYTHON_ROOT, "PLACEHOLDER-VALUE",
+            vocab.domain("example", "co"),
+            vocab.domain("example", "com", "other", "io"),
+            vocab.domain("notexample", "com"),
+            vocab.domain("myexample", "org"),
+            vocab.domain("test", "io"),
+            vocab.domain("localhost", "io"),
+            "test",
+            "invalid",
+            "example",
+            PYTHON_ROOT,
+            "PLACEHOLDER-VALUE",
             vocab.legal_en("Foo"),
         ):
             with self.subTest(value=value):
                 self.assertFalse(judgment.is_reserved_value(value))
 
     def test_reserved_ip_inside(self):
-        for value in ("192.0.2.0", "192.0.2.255", "198.51.100.7", "203.0.113.200", "2001:db8::1", "2001:db8:ffff::1",
-                      "http://203.0.113.5:8080/x", "http://[2001:db8::1]:80/x"):
+        for value in (
+            "192.0.2.0",
+            "192.0.2.255",
+            "198.51.100.7",
+            "203.0.113.200",
+            "2001:db8::1",
+            "2001:db8:ffff::1",
+            "http://203.0.113.5:8080/x",
+            "http://[2001:db8::1]:80/x",
+        ):
             with self.subTest(value=value):
                 self.assertTrue(judgment.is_reserved_value(value))
 
     def test_reserved_ip_outside(self):
-        for value in ("192.0.3.1", "192.0.1.255", "198.51.101.1", "203.0.114.1", vocab.ip(10, 0, 0, 1),
-                      vocab.ip(192, 168, 0, 1), "2001:db9::1", "2001:db7::1"):
+        for value in (
+            "192.0.3.1",
+            "192.0.1.255",
+            "198.51.101.1",
+            "203.0.114.1",
+            vocab.ip(10, 0, 0, 1),
+            vocab.ip(192, 168, 0, 1),
+            "2001:db9::1",
+            "2001:db7::1",
+        ):
             with self.subTest(value=value):
                 self.assertFalse(judgment.is_reserved_value(value))
 
@@ -325,13 +459,17 @@ class SecretNameMatchTest(unittest.TestCase):
 
 class ProjectAllowlistTest(unittest.TestCase):
     def reason(self, value, *items):
-        return judgment.allowlist_reason(value, lists.BundledAllowlist([], [], []), list(items))
+        return judgment.allowlist_reason(
+            value, lists.BundledAllowlist([], [], []), list(items)
+        )
 
     def test_wildcard_matches_domain_and_subdomains(self):
         item = "*." + DOCS
         for value in (DOCS, "a." + DOCS, f"https://a.b.{DOCS}/x"):
             with self.subTest(value=value):
-                self.assertEqual(self.reason(value, item), judgment.REASON_ALLOW_PROJECT)
+                self.assertEqual(
+                    self.reason(value, item), judgment.REASON_ALLOW_PROJECT
+                )
         for value in ("x" + DOCS, f"{DOCS}.{OTHER}"):
             with self.subTest(value=value):
                 self.assertIsNone(self.reason(value, item))
@@ -340,14 +478,18 @@ class ProjectAllowlistTest(unittest.TestCase):
         item = DOCS + "/guide"
         for value in (DOCS + "/guide", f"https://{DOCS}/guide/a/b"):
             with self.subTest(value=value):
-                self.assertEqual(self.reason(value, item), judgment.REASON_ALLOW_PROJECT)
+                self.assertEqual(
+                    self.reason(value, item), judgment.REASON_ALLOW_PROJECT
+                )
         for value in (DOCS + "/guidebook", DOCS, DOCS + "/other"):
             with self.subTest(value=value):
                 self.assertIsNone(self.reason(value, item))
 
     def test_item_with_query_is_exact_match_only(self):
         item = DOCS + "/guide?a=1"
-        self.assertEqual(self.reason(DOCS + "/guide?a=1", item), judgment.REASON_ALLOW_PROJECT)
+        self.assertEqual(
+            self.reason(DOCS + "/guide?a=1", item), judgment.REASON_ALLOW_PROJECT
+        )
         self.assertIsNone(self.reason(DOCS + "/guide?a=1/x", item))
 
     def test_other_items_are_exact_match(self):
@@ -376,7 +518,11 @@ class BundledAllowlistTest(unittest.TestCase):
         self.assertIn(GITHUB_ROOT, self.bundled.host_only_domains)
 
     def test_full_domain_matches_by_suffix(self):
-        for value in (PYTHON_ROOT, "docs." + PYTHON_ROOT, f"https://docs.{PYTHON_ROOT}/3/library/x.html?q=1"):
+        for value in (
+            PYTHON_ROOT,
+            "docs." + PYTHON_ROOT,
+            f"https://docs.{PYTHON_ROOT}/3/library/x.html?q=1",
+        ):
             with self.subTest(value=value):
                 self.assertEqual(self.reason(value), judgment.REASON_ALLOW_FULL)
 
@@ -388,8 +534,11 @@ class BundledAllowlistTest(unittest.TestCase):
 
     def test_host_only_domain_passes_the_host_and_www(self):
         for value in (
-            GITHUB_ROOT, "www." + GITHUB_ROOT, f"https://{GITHUB_ROOT}",
-            f"https://www.{GITHUB_ROOT}/", f"http://{GITHUB_ROOT}",
+            GITHUB_ROOT,
+            "www." + GITHUB_ROOT,
+            f"https://{GITHUB_ROOT}",
+            f"https://www.{GITHUB_ROOT}/",
+            f"http://{GITHUB_ROOT}",
         ):
             with self.subTest(value=value):
                 self.assertEqual(self.reason(value), judgment.REASON_ALLOW_HOST_ONLY)
@@ -409,16 +558,22 @@ class BundledAllowlistTest(unittest.TestCase):
                 self.assertIsNone(self.reason(value))
 
     def test_host_only_url_with_path_is_confirm(self):
-        lists_ = make_lists(full=self.bundled.full_domains, host_only=self.bundled.host_only_domains)
+        lists_ = make_lists(
+            full=self.bundled.full_domains, host_only=self.bundled.host_only_domains
+        )
         for value in (
             f"https://{GITHUB_ROOT}/other-org/secret-repo?x=1",
-            vocab.domain("other-org", "slack", "com"),  # 同梱の実在ドメインの近い別名は組み立てる
+            vocab.domain(
+                "other-org", "slack", "com"
+            ),  # 同梱の実在ドメインの近い別名は組み立てる
             "figma.com/file/abc",
         ):
             with self.subTest(value=value):
                 cls, reason = judgment.classify(cand("domain", value), lists_)
                 self.assertEqual((cls, reason), (CONFIRM, judgment.REASON_CONFIRM_KIND))
-        self.assertEqual(judgment.classify(cand("domain", GITHUB_ROOT), lists_)[0], PASS)
+        self.assertEqual(
+            judgment.classify(cand("domain", GITHUB_ROOT), lists_)[0], PASS
+        )
 
     def test_bundled_match_is_case_sensitive(self):
         self.assertIsNone(self.reason(vocab.domain("GitHub", "com")))
@@ -438,94 +593,143 @@ class PackagePrefixAllowlistTest(unittest.TestCase):
 
     def classify(self, kind, value, secret_names=(), project=()):
         lists_ = lists.Lists(
-            bundled_allowlist=self.bundled, project_allowlist=list(project), secret_names=list(secret_names)
+            bundled_allowlist=self.bundled,
+            project_allowlist=list(project),
+            secret_names=list(secret_names),
         )
         return judgment.classify(cand(kind, value), lists_)
 
     def test_bundled_prefix_passes_a_package_name(self):
         for value in (
-            "org.apache.commons.lang3.StringUtils", "com.apple.Safari.plist",
-            "com.google.android.material.Button", "org.apache", "org.apache.Foo",
+            "org.apache.commons.lang3.StringUtils",
+            "com.apple.Safari.plist",
+            "com.google.android.material.Button",
+            "org.apache",
+            "org.apache.Foo",
         ):
             with self.subTest(value=value):
                 self.assertEqual(
-                    self.classify("package_name", value), (PASS, judgment.REASON_ALLOW_PACKAGE)
+                    self.classify("package_name", value),
+                    (PASS, judgment.REASON_ALLOW_PACKAGE),
                 )
 
     def test_bundled_prefix_matches_only_at_a_label_boundary(self):
         for value in (
-            vocab.domain("org", "apachefoo", "bar", "baz"), vocab.domain("com", "applesauce", "app", "Main"),
+            vocab.domain("org", "apachefoo", "bar", "baz"),
+            vocab.domain("com", "applesauce", "app", "Main"),
             vocab.domain("org", "apach", "foo", "bar"),
         ):
             with self.subTest(value=value):
-                self.assertEqual(self.classify("package_name", value), (FAIL, judgment.REASON_FAIL_KIND))
+                self.assertEqual(
+                    self.classify("package_name", value),
+                    (FAIL, judgment.REASON_FAIL_KIND),
+                )
 
     def test_bundled_prefix_is_case_sensitive(self):
         for value in (
-            vocab.domain("Org", "Apache", "Foo", "Bar"), vocab.domain("org", "Apache", "Foo", "Bar"),
+            vocab.domain("Org", "Apache", "Foo", "Bar"),
+            vocab.domain("org", "Apache", "Foo", "Bar"),
             vocab.domain("COM", "APPLE", "Safari", "plist"),
         ):
             with self.subTest(value=value):
-                self.assertEqual(self.classify("package_name", value), (FAIL, judgment.REASON_FAIL_KIND))
+                self.assertEqual(
+                    self.classify("package_name", value),
+                    (FAIL, judgment.REASON_FAIL_KIND),
+                )
 
     def test_bundled_prefix_does_not_cover_names_owned_by_individuals(self):
         for value in (
-            vocab.domain("io", "github", "user", "project"), vocab.domain("com", "github", "user", "project"),
-            vocab.domain("net", "http", "client", "Request"), vocab.domain("co", "jp", "company", "service"),
+            vocab.domain("io", "github", "user", "project"),
+            vocab.domain("com", "github", "user", "project"),
+            vocab.domain("net", "http", "client", "Request"),
+            vocab.domain("co", "jp", "company", "service"),
         ):
             with self.subTest(value=value):
-                self.assertEqual(self.classify("package_name", value), (FAIL, judgment.REASON_FAIL_KIND))
+                self.assertEqual(
+                    self.classify("package_name", value),
+                    (FAIL, judgment.REASON_FAIL_KIND),
+                )
 
     def test_bundled_prefix_does_not_pass_other_kinds(self):
         value = "org.apache.commons.lang3"
-        self.assertEqual(self.classify("domain", value), (CONFIRM, judgment.REASON_CONFIRM_KIND))
-        self.assertEqual(self.classify("secret_assignment", value), (FAIL, judgment.REASON_FAIL_KIND))
+        self.assertEqual(
+            self.classify("domain", value), (CONFIRM, judgment.REASON_CONFIRM_KIND)
+        )
+        self.assertEqual(
+            self.classify("secret_assignment", value), (FAIL, judgment.REASON_FAIL_KIND)
+        )
 
     def test_project_prefix_item_passes_a_package_name(self):
         item = vocab.domain("com", "acme") + ".*"
         for value in (
-            vocab.domain("com", "acme"), vocab.domain("com", "acme", "app", "Main"),
+            vocab.domain("com", "acme"),
+            vocab.domain("com", "acme", "app", "Main"),
             vocab.domain("com", "acme", "app"),
         ):
             with self.subTest(value=value):
                 self.assertEqual(
-                    self.classify("package_name", value, project=[item]), (PASS, judgment.REASON_ALLOW_PROJECT)
+                    self.classify("package_name", value, project=[item]),
+                    (PASS, judgment.REASON_ALLOW_PROJECT),
                 )
 
     def test_project_prefix_item_matches_only_at_a_label_boundary(self):
         item = vocab.domain("com", "acme") + ".*"
-        for value in (vocab.domain("com", "acmex", "app", "Main"), vocab.domain("org", "acme", "app", "Main")):
+        for value in (
+            vocab.domain("com", "acmex", "app", "Main"),
+            vocab.domain("org", "acme", "app", "Main"),
+        ):
             with self.subTest(value=value):
                 self.assertEqual(
-                    self.classify("package_name", value, project=[item]), (FAIL, judgment.REASON_FAIL_KIND)
+                    self.classify("package_name", value, project=[item]),
+                    (FAIL, judgment.REASON_FAIL_KIND),
                 )
 
     def test_project_prefix_item_does_not_pass_other_kinds(self):
         item = vocab.domain("com", "acme") + ".*"
         value = vocab.domain("com", "acme", "app")
-        self.assertEqual(self.classify("domain", value, project=[item]), (CONFIRM, judgment.REASON_CONFIRM_KIND))
-        self.assertEqual(self.classify("secret_assignment", value, project=[item]), (FAIL, judgment.REASON_FAIL_KIND))
+        self.assertEqual(
+            self.classify("domain", value, project=[item]),
+            (CONFIRM, judgment.REASON_CONFIRM_KIND),
+        )
+        self.assertEqual(
+            self.classify("secret_assignment", value, project=[item]),
+            (FAIL, judgment.REASON_FAIL_KIND),
+        )
 
     def test_project_prefix_item_is_not_an_item_of_the_general_allowlist_match(self):
         # 既存の項目の形（`*.`・パス・完全一致）の一致方法（allowlist_reason）には、接頭辞の項目を足さない
         item = vocab.domain("com", "acme") + ".*"
-        self.assertIsNone(judgment.allowlist_reason(vocab.domain("com", "acme", "app"), self.bundled, [item]))
+        self.assertIsNone(
+            judgment.allowlist_reason(
+                vocab.domain("com", "acme", "app"), self.bundled, [item]
+            )
+        )
 
     def test_secret_name_wins_over_a_prefix_allowance(self):
         project = [vocab.domain("com", "acme") + ".*"]
         self.assertEqual(
-            self.classify("package_name", "org.apache.commons.lang3.StringUtils", secret_names=["commons"]),
+            self.classify(
+                "package_name",
+                "org.apache.commons.lang3.StringUtils",
+                secret_names=["commons"],
+            ),
             (FAIL, judgment.REASON_NAME_LIST),
         )
         self.assertEqual(
             self.classify(
-                "package_name", vocab.domain("com", "acme", "app", "Main"), secret_names=["acme"], project=project
+                "package_name",
+                vocab.domain("com", "acme", "app", "Main"),
+                secret_names=["acme"],
+                project=project,
             ),
             (FAIL, judgment.REASON_NAME_LIST),
         )
 
     def test_reserved_reverse_domain_still_passes_as_reserved(self):
-        self.assertEqual(self.classify("package_name", "com.example.app"), (PASS, judgment.REASON_RESERVED))
+        self.assertEqual(
+            self.classify("package_name", "com.example.app"),
+            (PASS, judgment.REASON_RESERVED),
+        )
 
 
 class OverallClassTest(unittest.TestCase):
@@ -545,11 +749,15 @@ class OverallClassTest(unittest.TestCase):
         # 予約値ではない値（P0002）と並べるため、P0001 は予約値ではなくプロジェクトの許可リストで通す
         with vocab.no_reserved():
             result = judgment.judge(candidates, make_lists(project=["www.example.com"]))
-        self.assertEqual([r["class"] for r in result["candidates"]], [PASS, CONFIRM, FAIL])
+        self.assertEqual(
+            [r["class"] for r in result["candidates"]], [PASS, CONFIRM, FAIL]
+        )
         self.assertEqual(result["class"], FAIL)
 
     def test_no_candidates_is_pass(self):
-        self.assertEqual(judgment.judge([], make_lists()), {"candidates": [], "class": PASS})
+        self.assertEqual(
+            judgment.judge([], make_lists()), {"candidates": [], "class": PASS}
+        )
 
     def test_reason_never_contains_the_value(self):
         value = "PLACEHOLDER-VALUE-ZZ"
@@ -572,7 +780,12 @@ class DeterminismTest(unittest.TestCase):
             cand("private_ip", private_ip, "P0004"),
         ]
         names = ["サンプル", CORP, "corp"]
-        lists_ = make_lists(secret_names=names, full=[PYTHON_ROOT], host_only=[GITHUB_ROOT], project=[private_ip])
+        lists_ = make_lists(
+            secret_names=names,
+            full=[PYTHON_ROOT],
+            host_only=[GITHUB_ROOT],
+            project=[private_ip],
+        )
         first = judgment.judge(candidates, lists_)
         for _ in range(5):
             self.assertEqual(judgment.judge(candidates, lists_), first)

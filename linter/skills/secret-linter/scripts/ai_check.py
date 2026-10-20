@@ -34,7 +34,9 @@ def cmd_check(args):
     except workspace.WorkspaceError as exc:
         return secret_common.error(str(exc))
     if not done:
-        return secret_common.error("AI 検出の終了の印がありません（AI 検出は正常に終えていません）")
+        return secret_common.error(
+            "AI 検出の終了の印がありません（AI 検出は正常に終えていません）"
+        )
     secret_common.emit({})
     return 0
 

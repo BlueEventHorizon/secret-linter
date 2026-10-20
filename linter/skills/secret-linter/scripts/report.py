@@ -65,7 +65,11 @@ import workspace  # noqa: E402
 CLASS_PASS = "合格"
 CLASS_FAIL = "不合格"
 
-_JUDGMENT_WORD = {judgment.FAIL: "不合格", judgment.PASS: "通過", judgment.CONFIRM: "要確認"}
+_JUDGMENT_WORD = {
+    judgment.FAIL: "不合格",
+    judgment.PASS: "通過",
+    judgment.CONFIRM: "要確認",
+}
 
 #: 不合格の結果の末尾に添える、誤検出を通す方法。示さなければ、利用者も呼び出し元の AI も、止まったまま打つ手を知らない
 FALSE_POSITIVE_GUIDANCE = (
@@ -98,7 +102,9 @@ def _unit_index(units):
 def _position_of(candidate, unit_index):
     unit = unit_index.get(candidate.get("unit_id"), {})
     commit = candidate.get("commit", unit.get("commit"))
-    return _format_position(unit.get("label", "(不明な検査単位)"), candidate.get("line"), commit)
+    return _format_position(
+        unit.get("label", "(不明な検査単位)"), candidate.get("line"), commit
+    )
 
 
 def _verdict(first_class, latest_class):
@@ -116,9 +122,13 @@ def _candidate_section(entries):
 
 
 def _pass_section(groups):
-    lines = [f"## 通過した候補（{sum(g['count'] for g in groups.values())} 件。種別と値が同じものは 1 行）"]
+    lines = [
+        f"## 通過した候補（{sum(g['count'] for g in groups.values())} 件。種別と値が同じものは 1 行）"
+    ]
     for (kind, value), group in groups.items():
-        lines.append(f"- {kind} / `{value}` / {group['count']} 件 / 最初の位置 {group['first']}")
+        lines.append(
+            f"- {kind} / `{value}` / {group['count']} 件 / 最初の位置 {group['first']}"
+        )
     return "\n".join(lines)
 
 
@@ -167,7 +177,9 @@ def build_report(candidates, suppressed, units, skipped, first, latest):
         cid = candidate.get("candidate_id")
         if cid not in latest_classes:
             raise ReportError("判定に含まれない機密候補があります")
-        if not isinstance(candidate.get("kind"), str) or not isinstance(candidate.get("value"), str):
+        if not isinstance(candidate.get("kind"), str) or not isinstance(
+            candidate.get("value"), str
+        ):
             raise ReportError("機密候補の種別または値が文字列ではありません")
         latest_class = latest_classes[cid]
         if latest_class == judgment.CONFIRM:
@@ -175,9 +187,18 @@ def build_report(candidates, suppressed, units, skipped, first, latest):
         first_class = first_classes.get(cid, latest_class)
         position = _position_of(candidate, unit_index)
         if first_class == judgment.CONFIRM or latest_class == judgment.FAIL:
-            detail.append((position, candidate["kind"], candidate["value"], _verdict(first_class, latest_class)))
+            detail.append(
+                (
+                    position,
+                    candidate["kind"],
+                    candidate["value"],
+                    _verdict(first_class, latest_class),
+                )
+            )
         else:
-            group = pass_groups.setdefault((candidate["kind"], candidate["value"]), {"count": 0, "first": position})
+            group = pass_groups.setdefault(
+                (candidate["kind"], candidate["value"]), {"count": 0, "first": position}
+            )
             group["count"] += 1
     if latest["class"] == judgment.CONFIRM:
         raise ReportError("判定が確定していません（要確認の候補が残っています）")
@@ -189,7 +210,10 @@ def build_report(candidates, suppressed, units, skipped, first, latest):
         sections.append(_candidate_section(detail))
     if pass_groups:
         sections.append(_pass_section(pass_groups))
-    for section in (_suppressed_section(suppressed, unit_index), _skipped_section(skipped)):
+    for section in (
+        _suppressed_section(suppressed, unit_index),
+        _skipped_section(skipped),
+    ):
         if section is not None:
             sections.append(section)
 
@@ -202,13 +226,18 @@ def build_report(candidates, suppressed, units, skipped, first, latest):
 def cmd_report(args):
     inspection_id = args.inspection_id
     try:
-        candidates, suppressed, units, skipped, latest = inspection_input.read_inputs_following_judgment(
-            inspection_id
+        candidates, suppressed, units, skipped, latest = (
+            inspection_input.read_inputs_following_judgment(inspection_id)
         )
         first = judgment.read_first(inspection_id)
-        overall, body = build_report(candidates, suppressed, units, skipped, first, latest)
+        overall, body = build_report(
+            candidates, suppressed, units, skipped, first, latest
+        )
     except (
-        inspection_input.InputError, workspace.WorkspaceError, judgment.JudgmentError, ReportError,
+        inspection_input.InputError,
+        workspace.WorkspaceError,
+        judgment.JudgmentError,
+        ReportError,
     ) as exc:
         return secret_common.error(str(exc))
     secret_common.emit({"class": overall, "body": body})

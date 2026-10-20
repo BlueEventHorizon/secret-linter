@@ -16,7 +16,7 @@ DES-087 のモジュール表 P-1・W-2 と、テスト表 SC-04・14・15 の�
 テストコードの中で連結して組み立てる（形式だけを満たす架空の値）。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_scan_pattern -v
+  python3 -m unittest tests.test_scan_pattern -v
 """
 
 import importlib.util
@@ -32,8 +32,11 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 SCRIPT = _SCRIPTS_DIR / "scan.py"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -55,7 +58,9 @@ MARKER = scan.patterns.SUPPRESS_MARKER
 
 
 def _git(args, cwd, env=None):
-    result = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, check=True, env=env)
+    result = subprocess.run(
+        ["git", *args], cwd=str(cwd), capture_output=True, check=True, env=env
+    )
     return result.stdout.decode("utf-8", errors="replace").strip()
 
 
@@ -99,7 +104,10 @@ class ScanPatternTestCase(unittest.TestCase):
 
     def run_scan(self, *args):
         completed = subprocess.run(
-            [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=self.env()
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            env=self.env(),
         )
         payload = json.loads(completed.stdout) if completed.stdout.strip() else None
         return completed.returncode, payload, completed
@@ -107,7 +115,9 @@ class ScanPatternTestCase(unittest.TestCase):
     def run_in_process(self, *argv):
         buffer = io.StringIO()
         with mock.patch.object(tempfile, "tempdir", str(self.tmpdir)):
-            with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(self.base_path)}):
+            with mock.patch.dict(
+                os.environ, {"GIT_CEILING_DIRECTORIES": str(self.base_path)}
+            ):
                 with redirect_stdout(buffer):
                     code = scan.run_cli(list(argv))
         return code, json.loads(buffer.getvalue()), buffer.getvalue()
@@ -130,7 +140,9 @@ class PatternJsonTest(ScanPatternTestCase):
         code, payload, _ = self.scan_files("a.txt")
 
         self.assertEqual(code, 0)
-        self.assertEqual(sorted(payload), ["inspection_id", "pattern_candidate_count", "unit_count"])
+        self.assertEqual(
+            sorted(payload), ["inspection_id", "pattern_candidate_count", "unit_count"]
+        )
         pattern = self.read_workspace_json(payload["inspection_id"], "pattern.json")
         self.assertEqual(payload["pattern_candidate_count"], len(pattern["candidates"]))
         self.assertEqual(payload["pattern_candidate_count"], 2)
@@ -144,10 +156,16 @@ class PatternJsonTest(ScanPatternTestCase):
         self.assertEqual(sorted(pattern), ["candidates", "filtered", "suppressed"])
         self.assertEqual(
             pattern["candidates"],
-            [{
-                "candidate_id": "P0001", "source": "pattern", "unit_id": "U0001",
-                "line": 1, "kind": "email", "value": EMAIL,
-            }],
+            [
+                {
+                    "candidate_id": "P0001",
+                    "source": "pattern",
+                    "unit_id": "U0001",
+                    "line": 1,
+                    "kind": "email",
+                    "value": EMAIL,
+                }
+            ],
         )
         self.assertEqual(sorted(pattern["suppressed"]), ["count", "locations"])
         self.assertEqual(sorted(pattern["filtered"]), ["count", "reasons"])
@@ -160,15 +178,23 @@ class PatternJsonTest(ScanPatternTestCase):
 
         _, payload, _ = self.scan_files("a.txt", "b.txt")
 
-        units = self.read_workspace_json(payload["inspection_id"], "units.json")["units"]
+        units = self.read_workspace_json(payload["inspection_id"], "units.json")[
+            "units"
+        ]
         pattern = self.read_workspace_json(payload["inspection_id"], "pattern.json")
         labels = {u["unit_id"]: u["label"] for u in units}
-        self.assertEqual([labels[c["unit_id"]] for c in pattern["candidates"]], ["b.txt"])
+        self.assertEqual(
+            [labels[c["unit_id"]] for c in pattern["candidates"]], ["b.txt"]
+        )
 
     def test_suppressed_and_filtered_are_recorded_without_values(self):
         self.write(
             "a.txt",
-            "aws = " + AWS_KEY + "  # " + MARKER + "\n"
+            "aws = "
+            + AWS_KEY
+            + "  # "
+            + MARKER
+            + "\n"
             + "token = tokens[i].decode(errors)\n",
         )
 
@@ -179,7 +205,17 @@ class PatternJsonTest(ScanPatternTestCase):
         self.assertEqual(pattern["candidates"], [])
         self.assertEqual(
             pattern["suppressed"],
-            {"count": 1, "locations": [{"unit_id": "U0001", "label": "a.txt", "line": 1, "kind": "known_token"}]},
+            {
+                "count": 1,
+                "locations": [
+                    {
+                        "unit_id": "U0001",
+                        "label": "a.txt",
+                        "line": 1,
+                        "kind": "known_token",
+                    }
+                ],
+            },
         )
         self.assertEqual(pattern["filtered"]["count"], 1)
         self.assertEqual(pattern["filtered"]["reasons"]["code_expression"], 1)
@@ -207,7 +243,9 @@ class PatternJsonTest(ScanPatternTestCase):
         code, payload, _ = self.scan_files("bin.dat")
 
         self.assertEqual(code, 0)
-        self.assertEqual((payload["unit_count"], payload["pattern_candidate_count"]), (0, 0))
+        self.assertEqual(
+            (payload["unit_count"], payload["pattern_candidate_count"]), (0, 0)
+        )
 
     def test_pattern_json_and_workspace_are_private(self):
         self.write("a.txt", EMAIL + "\n")
@@ -229,7 +267,10 @@ class ScopeTest(ScanPatternTestCase):
         _, payload, _ = self.run_scan("--project-root", str(self.root), "--diff")
 
         pattern = self.read_workspace_json(payload["inspection_id"], "pattern.json")
-        self.assertEqual([(c["kind"], c["line"], c["value"]) for c in pattern["candidates"]], [("email", 1, EMAIL)])
+        self.assertEqual(
+            [(c["kind"], c["line"], c["value"]) for c in pattern["candidates"]],
+            [("email", 1, EMAIL)],
+        )
 
     def test_dirs_scope_detects_in_files_under_the_directory(self):
         self.init_repo()
@@ -238,12 +279,18 @@ class ScopeTest(ScanPatternTestCase):
         self.git("add", "-A")
         self.git("commit", "-q", "-m", "initial")
 
-        _, payload, _ = self.run_scan("--project-root", str(self.root), "--dirs", "docs")
+        _, payload, _ = self.run_scan(
+            "--project-root", str(self.root), "--dirs", "docs"
+        )
 
         pattern = self.read_workspace_json(payload["inspection_id"], "pattern.json")
-        units = self.read_workspace_json(payload["inspection_id"], "units.json")["units"]
+        units = self.read_workspace_json(payload["inspection_id"], "units.json")[
+            "units"
+        ]
         self.assertEqual([u["label"] for u in units], ["docs/a.md"])
-        self.assertEqual([(c["kind"], c["line"]) for c in pattern["candidates"]], [("private_ip", 2)])
+        self.assertEqual(
+            [(c["kind"], c["line"]) for c in pattern["candidates"]], [("private_ip", 2)]
+        )
 
     def test_files_scope_detects_in_a_file_outside_the_project_root(self):
         outside = self.base_path / "outside"
@@ -269,11 +316,16 @@ class ScopeTest(ScanPatternTestCase):
         pattern = self.read_workspace_json(payload["inspection_id"], "pattern.json")
         units = {
             u["unit_id"]: u
-            for u in self.read_workspace_json(payload["inspection_id"], "units.json")["units"]
+            for u in self.read_workspace_json(payload["inspection_id"], "units.json")[
+                "units"
+            ]
         }
         self.assertEqual(len(pattern["candidates"]), 1)
         candidate = pattern["candidates"][0]
-        self.assertEqual((candidate["kind"], candidate["value"], candidate["line"]), ("email", EMAIL, 3))
+        self.assertEqual(
+            (candidate["kind"], candidate["value"], candidate["line"]),
+            ("email", EMAIL, 3),
+        )
         self.assertEqual(candidate["commit"], sha)
         self.assertEqual(units[candidate["unit_id"]]["kind"], "added_lines")
         self.assertEqual(units[candidate["unit_id"]]["label"], "a.txt")
@@ -291,11 +343,16 @@ class ScopeTest(ScanPatternTestCase):
         pattern = self.read_workspace_json(payload["inspection_id"], "pattern.json")
         units = {
             u["unit_id"]: u
-            for u in self.read_workspace_json(payload["inspection_id"], "units.json")["units"]
+            for u in self.read_workspace_json(payload["inspection_id"], "units.json")[
+                "units"
+            ]
         }
         self.assertEqual(len(pattern["candidates"]), 1)
         candidate = pattern["candidates"][0]
-        self.assertEqual((candidate["kind"], candidate["commit"], candidate["line"]), ("email", sha, 1))
+        self.assertEqual(
+            (candidate["kind"], candidate["commit"], candidate["line"]),
+            ("email", sha, 1),
+        )
         self.assertEqual(units[candidate["unit_id"]]["kind"], "commit_message")
 
     def test_branch_scope_does_not_see_a_value_removed_from_the_working_tree(self):
@@ -316,7 +373,10 @@ class ScopeTest(ScanPatternTestCase):
 
 class ValueNotLeakedTest(ScanPatternTestCase):
     def test_values_are_only_in_the_workspace_pattern_json(self):
-        self.write("a.txt", "aws = " + AWS_KEY + "\nmail " + EMAIL + "\ngh " + GITHUB_TOKEN + "\n")
+        self.write(
+            "a.txt",
+            "aws = " + AWS_KEY + "\nmail " + EMAIL + "\ngh " + GITHUB_TOKEN + "\n",
+        )
 
         code, payload, completed = self.scan_files("a.txt")
 
@@ -352,7 +412,9 @@ class PatternFailureTest(ScanPatternTestCase):
     def test_pattern_error_is_exit_1_with_no_workspace_and_no_value(self):
         self.write("a.txt", "aws = " + AWS_KEY + "\n")
         reason = "検査単位の本文を読めません: 理由だけ"
-        with mock.patch.object(scan.patterns, "detect", side_effect=scan.patterns.PatternError(reason)):
+        with mock.patch.object(
+            scan.patterns, "detect", side_effect=scan.patterns.PatternError(reason)
+        ):
             code, payload, stdout = self.run_in_process(
                 "--project-root", str(self.root), "--files", "a.txt"
             )
@@ -380,13 +442,19 @@ class PatternFailureTest(ScanPatternTestCase):
         self.assertNotIn(AWS_KEY, stdout)
         self.assertEqual(self.workspaces(), [])
 
-    def test_unexpected_exception_in_detection_removes_the_workspace_and_is_reraised(self):
+    def test_unexpected_exception_in_detection_removes_the_workspace_and_is_reraised(
+        self,
+    ):
         self.write("a.txt", "x\n")
         with mock.patch.object(tempfile, "tempdir", str(self.tmpdir)):
-            with mock.patch.object(scan.patterns, "detect", side_effect=RuntimeError("想定外")):
+            with mock.patch.object(
+                scan.patterns, "detect", side_effect=RuntimeError("想定外")
+            ):
                 with redirect_stdout(io.StringIO()):
                     with self.assertRaises(RuntimeError):
-                        scan.run_cli(["--project-root", str(self.root), "--files", "a.txt"])
+                        scan.run_cli(
+                            ["--project-root", str(self.root), "--files", "a.txt"]
+                        )
         self.assertEqual(self.workspaces(), [])
 
     def test_pattern_json_write_failure_is_exit_1_with_no_workspace(self):

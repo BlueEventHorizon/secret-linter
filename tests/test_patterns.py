@@ -17,7 +17,7 @@ SC-15（抑制マーカー付きの件数と位置）のスクリプトの検証
 実在の値を一部改変したものは使わない。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_patterns -v
+  python3 -m unittest tests.test_patterns -v
 """
 
 import importlib.util
@@ -30,8 +30,11 @@ import unittest
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 _PATTERNS_PATH = _SCRIPTS_DIR / "patterns.py"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -57,14 +60,18 @@ KNOWN_TOKENS = {
     "stripe_live_key": STRIPE_KEY,
     "npm_token": NPM_TOKEN,
 }
-JWT = ".".join([
-    "eyJhbGci" + "OiJIUzI1NiJ9",
-    "eyJzdWIi" + "OiJ1c2VyIn0",
-    "Zq4Lm8Rt" + "2Xv6Kp9Wd3Bn",
-])
+JWT = ".".join(
+    [
+        "eyJhbGci" + "OiJIUzI1NiJ9",
+        "eyJzdWIi" + "OiJ1c2VyIn0",
+        "Zq4Lm8Rt" + "2Xv6Kp9Wd3Bn",
+    ]
+)
 PRIVATE_KEY_HEADER = "-----BEGIN RSA " + "PRIVATE KEY-----"
 CONNECTION_PASSWORD = "R7k2" + "LmQ9vXt4Ws"
-CONNECTION_STRING = "postgres://svcuser:" + CONNECTION_PASSWORD + "@db.example.org:5432/app"
+CONNECTION_STRING = (
+    "postgres://svcuser:" + CONNECTION_PASSWORD + "@db.example.org:5432/app"
+)
 ASSIGNED_VALUE = "9f8Ld2Qm" + "4Xr7Tb1Yv6Zc3Nk5Hs0Jw8Pe"
 PROSE_PASSWORD = "Mq7" + "!Lz4Rt9"
 HIGH_ENTROPY = "9f8Ld2Qm4Xr7Tb1Yv6Zc3Nk5Hs0Jw8Pe" + "Aa4Bb5Cc6Dd"
@@ -115,17 +122,31 @@ class PatternTestCase(unittest.TestCase):
         return path
 
     def file_unit(self, text, unit_id="U0001", label="sample.txt"):
-        return {"unit_id": unit_id, "kind": "file", "label": label, "text_path": str(self.write(text))}
-
-    def added_lines_unit(self, text, line_numbers, unit_id="U0001", commit=COMMIT, path="src/app.txt"):
         return {
-            "unit_id": unit_id, "kind": "added_lines", "label": path, "commit": commit,
-            "text_path": str(self.write(text)), "line_numbers": line_numbers,
+            "unit_id": unit_id,
+            "kind": "file",
+            "label": label,
+            "text_path": str(self.write(text)),
+        }
+
+    def added_lines_unit(
+        self, text, line_numbers, unit_id="U0001", commit=COMMIT, path="src/app.txt"
+    ):
+        return {
+            "unit_id": unit_id,
+            "kind": "added_lines",
+            "label": path,
+            "commit": commit,
+            "text_path": str(self.write(text)),
+            "line_numbers": line_numbers,
         }
 
     def message_unit(self, text, unit_id="U0001", commit=COMMIT):
         return {
-            "unit_id": unit_id, "kind": "commit_message", "label": "コミットメッセージ", "commit": commit,
+            "unit_id": unit_id,
+            "kind": "commit_message",
+            "label": "コミットメッセージ",
+            "commit": commit,
             "text_path": str(self.write(text)),
         }
 
@@ -148,7 +169,9 @@ class KindTest(PatternTestCase):
         line, expected = KIND_CASES[kind]
         result = self.detect_text(line + "\n")
         matching = [c for c in result["candidates"] if c["kind"] == kind]
-        self.assertEqual([c["value"] for c in matching], [expected], result["candidates"])
+        self.assertEqual(
+            [c["value"] for c in matching], [expected], result["candidates"]
+        )
         self.assertEqual(matching[0]["source"], "pattern")
         self.assertEqual(matching[0]["line"], 1)
         self.assertEqual(matching[0]["unit_id"], "U0001")
@@ -181,9 +204,14 @@ class KindTest(PatternTestCase):
 
     def test_secret_assignment(self):
         self.assert_kind("secret_assignment")
-        for line in ('password: "' + ASSIGNED_VALUE + '"', "SECRET_KEY='" + ASSIGNED_VALUE + "'"):
+        for line in (
+            'password: "' + ASSIGNED_VALUE + '"',
+            "SECRET_KEY='" + ASSIGNED_VALUE + "'",
+        ):
             with self.subTest(line=line[:12]):
-                self.assertEqual(values_of(self.detect_text(line + "\n")), [ASSIGNED_VALUE])
+                self.assertEqual(
+                    values_of(self.detect_text(line + "\n")), [ASSIGNED_VALUE]
+                )
 
     def test_password_prose(self):
         self.assert_kind("password_prose")
@@ -194,7 +222,9 @@ class KindTest(PatternTestCase):
     def test_password_prose_requires_a_digit_or_symbol_and_six_characters(self):
         for value in ("abcdefgh", "Ab1!x"):
             with self.subTest(value=value):
-                self.assertEqual(self.detect_text("パスワードは" + value + "\n")["candidates"], [])
+                self.assertEqual(
+                    self.detect_text("パスワードは" + value + "\n")["candidates"], []
+                )
 
     def test_password_prose_ignores_a_value_in_a_code_span(self):
         # 説明文の中の、バッククォートで囲んだコード片（識別子など）は、散文中のパスワードではない
@@ -208,16 +238,23 @@ class KindTest(PatternTestCase):
 
     def test_password_prose_still_detects_a_value_in_quotes(self):
         # バッククォート以外の引用符で囲んだ値は、今までどおり検出する
-        for line in ('パスワードは「' + PROSE_PASSWORD + '」です', 'the password is "' + PROSE_PASSWORD + '"'):
+        for line in (
+            "パスワードは「" + PROSE_PASSWORD + "」です",
+            'the password is "' + PROSE_PASSWORD + '"',
+        ):
             with self.subTest(line=line[:12]):
-                self.assertEqual(values_of(self.detect_text(line + "\n")), [PROSE_PASSWORD])
+                self.assertEqual(
+                    values_of(self.detect_text(line + "\n")), [PROSE_PASSWORD]
+                )
 
     def test_password_prose_drops_trailing_punctuation(self):
         result = self.detect_text("password is " + PROSE_PASSWORD + ".\n")
         self.assertEqual(values_of(result), [PROSE_PASSWORD])
 
     def test_high_entropy(self):
-        self.assertGreaterEqual(patterns.shannon_entropy(HIGH_ENTROPY), patterns.ENTROPY_THRESHOLD)
+        self.assertGreaterEqual(
+            patterns.shannon_entropy(HIGH_ENTROPY), patterns.ENTROPY_THRESHOLD
+        )
         self.assert_kind("high_entropy")
 
     def test_company_hint(self):
@@ -228,11 +265,15 @@ class KindTest(PatternTestCase):
 
     def test_obfuscated_host(self):
         self.assert_kind("obfuscated_host")
-        spaced = self.detect_text("host " + vocab.domain("files", "corp", "com", sep=" dot ") + "\n")
+        spaced = self.detect_text(
+            "host " + vocab.domain("files", "corp", "com", sep=" dot ") + "\n"
+        )
         self.assertEqual(kinds_of(spaced), ["obfuscated_host"])
 
     def test_obfuscated_host_does_not_take_ordinary_prose(self):
-        self.assertEqual(self.detect_text("the dot product of two vectors\n")["candidates"], [])
+        self.assertEqual(
+            self.detect_text("the dot product of two vectors\n")["candidates"], []
+        )
 
     def test_package_name(self):
         self.assert_kind("package_name")
@@ -240,7 +281,12 @@ class KindTest(PatternTestCase):
     def test_package_name_takes_the_whole_identifier_including_a_class_name(self):
         flavor = vocab.domain("com", "foo", "bar", "dev")
         activity = vocab.domain("com", "foo", "bar", "MainActivity")
-        for value in (PACKAGE_NAME, flavor, activity, vocab.domain("ORG", "Foo_x", "bar2")):
+        for value in (
+            PACKAGE_NAME,
+            flavor,
+            activity,
+            vocab.domain("ORG", "Foo_x", "bar2"),
+        ):
             with self.subTest(value=value):
                 result = self.detect_text("id: " + value + "\n")
                 self.assertEqual(kinds_of(result), ["package_name"])
@@ -248,7 +294,10 @@ class KindTest(PatternTestCase):
 
     def test_package_name_is_adopted_before_domain(self):
         # 末尾が .dev・.app でも、domain として重ねて報告しない（package_name が先に採る）
-        for value in (vocab.domain("com", "foo", "bar", "dev"), vocab.domain("com", "foo", "bar", "app")):
+        for value in (
+            vocab.domain("com", "foo", "bar", "dev"),
+            vocab.domain("com", "foo", "bar", "app"),
+        ):
             with self.subTest(value=value):
                 result = self.detect_text("see " + value + "\n")
                 self.assertEqual(kinds_of(result), ["package_name"])
@@ -257,7 +306,9 @@ class KindTest(PatternTestCase):
         # 予約ドメインを逆にした形は、検出では除かず（domain に拾われないよう採ったうえで）判定が通過にする
         result = self.detect_text("id: com.example.app\norg.example.demo.Main\n")
         self.assertEqual(kinds_of(result), ["package_name", "package_name"])
-        self.assertEqual(values_of(result), ["com.example.app", "org.example.demo.Main"])
+        self.assertEqual(
+            values_of(result), ["com.example.app", "org.example.demo.Main"]
+        )
 
     def test_package_name_after_a_shell_default_operator_is_taken_whole(self):
         # ``${APP_ID:-com.example.app}`` の ``-`` は語の区切りであり、パッケージ名の一部でも、より長い名前の一部でもない
@@ -267,12 +318,17 @@ class KindTest(PatternTestCase):
 
     def test_package_name_needs_three_labels_and_a_root_word(self):
         for value in (
-            vocab.domain("com", "foo"), vocab.domain("io", "open"),
-            vocab.domain("foo", "bar", "baz"), vocab.domain("comx", "foo", "bar"),
-            vocab.domain("com", "foo-x", "bar"), vocab.domain("com", "1foo", "bar"),
+            vocab.domain("com", "foo"),
+            vocab.domain("io", "open"),
+            vocab.domain("foo", "bar", "baz"),
+            vocab.domain("comx", "foo", "bar"),
+            vocab.domain("com", "foo-x", "bar"),
+            vocab.domain("com", "1foo", "bar"),
         ):
             with self.subTest(value=value):
-                self.assertNotIn("package_name", kinds_of(self.detect_text("id: " + value + "\n")))
+                self.assertNotIn(
+                    "package_name", kinds_of(self.detect_text("id: " + value + "\n"))
+                )
 
     def test_package_name_root_words_kept(self):
         for root in ("com", "org", "net", "io", "jp", "co", "edu", "gov"):
@@ -282,27 +338,39 @@ class KindTest(PatternTestCase):
                 self.assertEqual(kinds_of(result), ["package_name"])
                 self.assertEqual(values_of(result), [value])
 
-    def test_package_name_is_not_taken_for_file_names_and_words_starting_with_a_dropped_root_word(self):
+    def test_package_name_is_not_taken_for_file_names_and_words_starting_with_a_dropped_root_word(
+        self,
+    ):
         # 根の語から外した app・dev・me・ai・info・biz で始まる、よくあるファイル名・設定名・ホスト名
         for text in (
-            "app.module.ts", "app.component.spec", vocab.domain("dev", "env", "local"),
-            "ai.model.config.json", "me.profile.settings.yaml", vocab.domain("app", "staging", "internal"),
+            "app.module.ts",
+            "app.component.spec",
+            vocab.domain("dev", "env", "local"),
+            "ai.model.config.json",
+            "me.profile.settings.yaml",
+            vocab.domain("app", "staging", "internal"),
         ):
             with self.subTest(text=text):
-                self.assertNotIn("package_name", kinds_of(self.detect_text("see " + text + "\n")))
+                self.assertNotIn(
+                    "package_name", kinds_of(self.detect_text("see " + text + "\n"))
+                )
 
     def test_package_name_roots_are_exactly_the_decided_set(self):
         self.assertEqual(
-            sorted(patterns._PACKAGE_ROOTS), sorted(("com", "org", "net", "io", "jp", "co", "edu", "gov"))
+            sorted(patterns._PACKAGE_ROOTS),
+            sorted(("com", "org", "net", "io", "jp", "co", "edu", "gov")),
         )
 
     def test_package_name_is_not_taken_from_the_middle_of_a_longer_name(self):
         for text in (
-            vocab.domain("x", "com", "foo", "bar"), "a@" + vocab.domain("com", "foo", "bar"),
+            vocab.domain("x", "com", "foo", "bar"),
+            "a@" + vocab.domain("com", "foo", "bar"),
             vocab.domain("com", "foo", "bar") + "-x",
         ):
             with self.subTest(text=text):
-                self.assertNotIn("package_name", kinds_of(self.detect_text("id: " + text + "\n")))
+                self.assertNotIn(
+                    "package_name", kinds_of(self.detect_text("id: " + text + "\n"))
+                )
 
     def test_domain(self):
         self.assert_kind("domain")
@@ -316,9 +384,16 @@ class KindTest(PatternTestCase):
 
     def test_private_ip(self):
         self.assert_kind("private_ip")
-        for ip in (vocab.ip(10, 1, 2, 3), vocab.ip(172, 16, 0, 1), vocab.ip(172, 31, 255, 254), vocab.ip(192, 168, 1, 1)):
+        for ip in (
+            vocab.ip(10, 1, 2, 3),
+            vocab.ip(172, 16, 0, 1),
+            vocab.ip(172, 31, 255, 254),
+            vocab.ip(192, 168, 1, 1),
+        ):
             with self.subTest(ip=ip):
-                self.assertEqual(kinds_of(self.detect_text("ip " + ip + "\n")), ["private_ip"])
+                self.assertEqual(
+                    kinds_of(self.detect_text("ip " + ip + "\n")), ["private_ip"]
+                )
 
     def test_non_private_ip_is_not_a_candidate(self):
         for ip in ("8.8.8.8", "172.32.0.1", "11.0.0.1", "192.169.0.1", "10.0.0.256"):
@@ -330,8 +405,12 @@ class KindTest(PatternTestCase):
 
     def test_detection_does_not_exclude_reserved_values(self):
         # 文書用の予約値・許可リストは、検出では除かない（機密判定が通過にする）
-        result = self.detect_text("see example.com\ndocs.python.org\nuser@example.com\n")
-        self.assertEqual(values_of(result), ["example.com", "docs.python.org", "user@example.com"])
+        result = self.detect_text(
+            "see example.com\ndocs.python.org\nuser@example.com\n"
+        )
+        self.assertEqual(
+            values_of(result), ["example.com", "docs.python.org", "user@example.com"]
+        )
         self.assertEqual(kinds_of(result), ["domain", "domain", "email"])
 
 
@@ -339,7 +418,9 @@ class RulePrecedenceTest(PatternTestCase):
     def test_all_kinds_are_found_when_given_together(self):
         text = "".join(line + "\n" for line, _ in KIND_CASES.values())
         result = self.detect_text(text)
-        self.assertEqual(set(kinds_of(result)) & set(patterns.KINDS), set(patterns.KINDS))
+        self.assertEqual(
+            set(kinds_of(result)) & set(patterns.KINDS), set(patterns.KINDS)
+        )
         self.assertEqual(result["suppressed"]["count"], 0)
 
     def test_same_line_same_value_is_taken_by_the_first_rule_only(self):
@@ -354,12 +435,16 @@ class RulePrecedenceTest(PatternTestCase):
         self.assertEqual(kinds_of(result), ["email"])
 
     def test_package_name_is_not_reported_again_as_domain(self):
-        result = self.detect_text("flavor " + vocab.domain("com", "foo", "bar", "dev") + "\n")
+        result = self.detect_text(
+            "flavor " + vocab.domain("com", "foo", "bar", "dev") + "\n"
+        )
         self.assertEqual(kinds_of(result), ["package_name"])
         self.assertNotIn("domain", kinds_of(result))
 
     def test_package_name_on_a_suppressed_line_is_counted_not_reported(self):
-        result = self.detect_text(PACKAGE_NAME + "  # " + patterns.SUPPRESS_MARKER + "\n")
+        result = self.detect_text(
+            PACKAGE_NAME + "  # " + patterns.SUPPRESS_MARKER + "\n"
+        )
         self.assertEqual(result["candidates"], [])
         self.assertEqual(result["suppressed"]["count"], 1)
         self.assertEqual(result["suppressed"]["locations"][0]["kind"], "package_name")
@@ -388,7 +473,14 @@ class SuppressionTest(PatternTestCase):
         self.assertEqual(result["suppressed"]["count"], 1)
         self.assertEqual(
             result["suppressed"]["locations"],
-            [{"unit_id": "U0001", "label": "sample.txt", "line": 1, "kind": "known_token"}],
+            [
+                {
+                    "unit_id": "U0001",
+                    "label": "sample.txt",
+                    "line": 1,
+                    "kind": "known_token",
+                }
+            ],
         )
 
     def test_suppressed_location_has_no_value(self):
@@ -398,20 +490,36 @@ class SuppressionTest(PatternTestCase):
         self.assertNotIn(AWS_KEY, json.dumps(result["suppressed"]))
 
     def test_marker_affects_only_its_own_line(self):
-        text = self.marked("a = " + AWS_KEY) + "\nb = " + GITHUB_TOKEN + "\n" + self.marked("c = " + EMAIL) + "\n"
+        text = (
+            self.marked("a = " + AWS_KEY)
+            + "\nb = "
+            + GITHUB_TOKEN
+            + "\n"
+            + self.marked("c = " + EMAIL)
+            + "\n"
+        )
         result = self.detect_text(text)
         self.assertEqual(values_of(result), [GITHUB_TOKEN])
-        self.assertEqual([loc["line"] for loc in result["suppressed"]["locations"]], [1, 3])
-        self.assertEqual([loc["kind"] for loc in result["suppressed"]["locations"]], ["known_token", "email"])
+        self.assertEqual(
+            [loc["line"] for loc in result["suppressed"]["locations"]], [1, 3]
+        )
+        self.assertEqual(
+            [loc["kind"] for loc in result["suppressed"]["locations"]],
+            ["known_token", "email"],
+        )
 
     def test_every_value_on_a_suppressed_line_is_counted(self):
-        result = self.detect_text(self.marked("a = " + AWS_KEY + " b = " + EMAIL) + "\n")
+        result = self.detect_text(
+            self.marked("a = " + AWS_KEY + " b = " + EMAIL) + "\n"
+        )
         self.assertEqual(result["candidates"], [])
         self.assertEqual(result["suppressed"]["count"], 2)
 
     def test_marker_itself_is_not_detected(self):
         """マーカー文字列自体は「秘密らしいキーへの代入」の形をしているため、走査から除く。"""
-        result = self.detect_text("行末に `" + patterns.SUPPRESS_MARKER + "` と書くと分類される\n")
+        result = self.detect_text(
+            "行末に `" + patterns.SUPPRESS_MARKER + "` と書くと分類される\n"
+        )
         self.assertEqual(result["candidates"], [])
         self.assertEqual(result["suppressed"], {"count": 0, "locations": []})
 
@@ -442,7 +550,9 @@ class FilterTest(PatternTestCase):
 
     def test_filter_reasons_are_the_closed_vocabulary(self):
         result = self.detect_text("nothing here\n")
-        self.assertEqual(sorted(result["filtered"]["reasons"]), sorted(patterns.FILTER_REASONS))
+        self.assertEqual(
+            sorted(result["filtered"]["reasons"]), sorted(patterns.FILTER_REASONS)
+        )
         self.assertEqual(
             sorted(patterns.FILTER_REASONS),
             ["code_expression", "constant_name", "path_like", "placeholder"],
@@ -451,7 +561,14 @@ class FilterTest(PatternTestCase):
 
     def test_placeholders_are_filtered(self):
         # 「秘密らしいキーへの代入」の値が、プレースホルダ（コード式として先に除かれる形を含む）に見える
-        for value in ("<your-api-key>", "${API_KEY}", "$FIGMA_TOKEN", "xxxxxxxxxxxx", "REPLACE_ME_NOW", "*****************"):
+        for value in (
+            "<your-api-key>",
+            "${API_KEY}",
+            "$FIGMA_TOKEN",
+            "xxxxxxxxxxxx",
+            "REPLACE_ME_NOW",
+            "*****************",
+        ):
             with self.subTest(value=value):
                 result = self.detect_text('api_key = "' + value + '"\n')
                 self.assertEqual(result["candidates"], [])
@@ -472,7 +589,9 @@ class FilterTest(PatternTestCase):
 
     def test_constant_name_is_filtered(self):
         """定数名の列挙を秘密と誤認しない（生成物の列挙で実測された誤検出）。"""
-        self.assert_filtered("with tokens: PROTOCOL_HEADER, REVIEW_TYPE, PLUGIN_ROOT", "constant_name")
+        self.assert_filtered(
+            "with tokens: PROTOCOL_HEADER, REVIEW_TYPE, PLUGIN_ROOT", "constant_name"
+        )
 
     def test_single_word_uppercase_is_still_a_candidate(self):
         """区切りの無い大文字列は、定数名として除かない（実在の資格情報と衝突させない）。"""
@@ -487,12 +606,16 @@ class FilterTest(PatternTestCase):
         self.assert_filtered("  docs/design_token_template.md: " + digest, "path_like")
 
     def test_prose_with_japanese_is_not_a_candidate(self):
-        result = self.detect_text("Authority: Tool-provided（forge 内蔵）/ Project-defined\n")
+        result = self.detect_text(
+            "Authority: Tool-provided（forge 内蔵）/ Project-defined\n"
+        )
         self.assertEqual(result["candidates"], [])
 
     def test_notation_word_in_connection_string_is_filtered(self):
         """``scheme://user:password@host`` のような記法の説明を秘密と誤認しない。"""
-        self.assert_filtered("接続文字列は `postgres://user:password@host/db` 形式", "placeholder")
+        self.assert_filtered(
+            "接続文字列は `postgres://user:password@host/db` 形式", "placeholder"
+        )
 
     def test_value_with_japanese_is_a_code_expression_not_a_secret(self):
         self.assert_filtered("password = 日本語のパスワードです", "code_expression")
@@ -511,17 +634,23 @@ class HighEntropyTest(PatternTestCase):
                 self.assertEqual(result["filtered"]["count"], 0)
 
     def test_long_path_is_not_high_entropy(self):
-        result = self.detect_text("docs/specs/forge/design/DES-055_review_request_template_design.md\n")
+        result = self.detect_text(
+            "docs/specs/forge/design/DES-055_review_request_template_design.md\n"
+        )
         self.assertEqual(result["candidates"], [])
 
     def test_shorter_than_forty_characters_is_not_high_entropy(self):
         value = HIGH_ENTROPY[:39]
-        self.assertGreaterEqual(patterns.shannon_entropy(value), patterns.ENTROPY_THRESHOLD)
+        self.assertGreaterEqual(
+            patterns.shannon_entropy(value), patterns.ENTROPY_THRESHOLD
+        )
         self.assertEqual(self.detect_text("blob " + value + "\n")["candidates"], [])
 
     def test_forty_characters_is_high_entropy(self):
         value = HIGH_ENTROPY[:40]
-        self.assertGreaterEqual(patterns.shannon_entropy(value), patterns.ENTROPY_THRESHOLD)
+        self.assertGreaterEqual(
+            patterns.shannon_entropy(value), patterns.ENTROPY_THRESHOLD
+        )
         result = self.detect_text("blob " + value + "\n")
         self.assertEqual(values_of(result), [value])
         self.assertEqual(kinds_of(result), ["high_entropy"])
@@ -540,7 +669,9 @@ class HighEntropyTest(PatternTestCase):
 
 class PositionTest(PatternTestCase):
     def test_file_line_is_one_based(self):
-        result = self.detect_text("line one\nline two\napi_key = " + ASSIGNED_VALUE + "\n")
+        result = self.detect_text(
+            "line one\nline two\napi_key = " + ASSIGNED_VALUE + "\n"
+        )
         self.assertEqual([c["line"] for c in result["candidates"]], [3])
         self.assertEqual(result["candidates"][0]["unit_id"], "U0001")
 
@@ -553,11 +684,16 @@ class PositionTest(PatternTestCase):
             "x = 1\nemail " + EMAIL + "\n" + "ip " + PRIVATE_IP + "\n", [10, 11, 42]
         )
         result = patterns.detect([unit])
-        self.assertEqual([(c["kind"], c["line"]) for c in result["candidates"]], [("email", 11), ("private_ip", 42)])
+        self.assertEqual(
+            [(c["kind"], c["line"]) for c in result["candidates"]],
+            [("email", 11), ("private_ip", 42)],
+        )
 
     def test_added_lines_commit_comes_from_the_commit_field(self):
         unit = self.added_lines_unit(EMAIL + "\n", [7], commit=OTHER_COMMIT)
-        self.assertEqual(patterns.detect([unit])["candidates"][0]["commit"], OTHER_COMMIT)
+        self.assertEqual(
+            patterns.detect([unit])["candidates"][0]["commit"], OTHER_COMMIT
+        )
 
     def test_commit_message_line_is_one_based_and_has_the_commit(self):
         result = patterns.detect([self.message_unit("subject\n\nbody " + EMAIL + "\n")])
@@ -574,15 +710,23 @@ class PositionTest(PatternTestCase):
         for length in (1, 7, 12, 39, 40, 41, 63, 64, 65, 100):
             commit = ("0123456789abcdef" * 7)[:length]
             with self.subTest(length=length):
-                added = patterns.detect([self.added_lines_unit(EMAIL + "\n", [3], commit=commit)])
-                message = patterns.detect([self.message_unit(EMAIL + "\n", commit=commit)])
+                added = patterns.detect(
+                    [self.added_lines_unit(EMAIL + "\n", [3], commit=commit)]
+                )
+                message = patterns.detect(
+                    [self.message_unit(EMAIL + "\n", commit=commit)]
+                )
                 self.assertEqual(added["candidates"][0]["commit"], commit)
                 self.assertEqual(message["candidates"][0]["commit"], commit)
 
     def test_label_is_not_read_for_the_commit(self):
         # label にどんな語があっても、commit は commit の項目から取る
-        unit = self.added_lines_unit(EMAIL + "\n", [1], commit=OTHER_COMMIT, path=COMMIT + ":x.txt")
-        self.assertEqual(patterns.detect([unit])["candidates"][0]["commit"], OTHER_COMMIT)
+        unit = self.added_lines_unit(
+            EMAIL + "\n", [1], commit=OTHER_COMMIT, path=COMMIT + ":x.txt"
+        )
+        self.assertEqual(
+            patterns.detect([unit])["candidates"][0]["commit"], OTHER_COMMIT
+        )
 
     def test_crlf_does_not_enter_the_value(self):
         result = self.detect_text(EMAIL + "\r\n" + PRIVATE_IP + "\r\n")
@@ -598,7 +742,9 @@ class PositionTest(PatternTestCase):
         self.assertEqual(values_of(self.detect_text("x\n" + EMAIL)), [EMAIL])
 
     def test_invalid_utf8_is_replaced_and_scanning_continues(self):
-        result = patterns.detect([self.file_unit(b"\xff\xfe " + EMAIL.encode("ascii") + b"\n")])
+        result = patterns.detect(
+            [self.file_unit(b"\xff\xfe " + EMAIL.encode("ascii") + b"\n")]
+        )
         self.assertEqual(values_of(result), [EMAIL])
 
     def test_long_line_is_scanned_to_the_end(self):
@@ -607,7 +753,8 @@ class PositionTest(PatternTestCase):
         later = " " * (patterns.LINE_WINDOW_CHARS * 3) + PRIVATE_IP
         result = self.detect_text(first + "\n" + later + "\n")
         self.assertEqual(
-            [(c["kind"], c["line"]) for c in result["candidates"]], [("email", 1), ("private_ip", 2)]
+            [(c["kind"], c["line"]) for c in result["candidates"]],
+            [("email", 1), ("private_ip", 2)],
         )
 
     def test_value_across_a_window_boundary_is_detected_once_whole(self):
@@ -625,21 +772,32 @@ class PositionTest(PatternTestCase):
         first = self.file_unit(EMAIL + "\n", unit_id="U0001", label="a.txt")
         second = self.file_unit(PRIVATE_IP + "\n", unit_id="U0002", label="b.txt")
         result = patterns.detect([first, second])
-        self.assertEqual([(c["candidate_id"], c["unit_id"]) for c in result["candidates"]],
-                         [("P0001", "U0001"), ("P0002", "U0002")])
+        self.assertEqual(
+            [(c["candidate_id"], c["unit_id"]) for c in result["candidates"]],
+            [("P0001", "U0001"), ("P0002", "U0002")],
+        )
 
 
 class CandidateIdTest(PatternTestCase):
     def test_ids_are_sequential_p_and_four_digits(self):
         text = "\n".join([EMAIL, PRIVATE_IP, INTERNAL_HOST]) + "\n"
         result = self.detect_text(text)
-        self.assertEqual([c["candidate_id"] for c in result["candidates"]], ["P0001", "P0002", "P0003"])
+        self.assertEqual(
+            [c["candidate_id"] for c in result["candidates"]],
+            ["P0001", "P0002", "P0003"],
+        )
 
     def test_candidate_shape(self):
         candidate = self.detect_text(EMAIL + "\n")["candidates"][0]
-        self.assertEqual(sorted(candidate), ["candidate_id", "kind", "line", "source", "unit_id", "value"])
+        self.assertEqual(
+            sorted(candidate),
+            ["candidate_id", "kind", "line", "source", "unit_id", "value"],
+        )
         history = patterns.detect([self.message_unit(EMAIL + "\n")])["candidates"][0]
-        self.assertEqual(sorted(history), ["candidate_id", "commit", "kind", "line", "source", "unit_id", "value"])
+        self.assertEqual(
+            sorted(history),
+            ["candidate_id", "commit", "kind", "line", "source", "unit_id", "value"],
+        )
 
     def test_ids_grow_beyond_four_digits(self):
         result = self.detect_text(("ip " + PRIVATE_IP + "\n") * 10_001)
@@ -662,7 +820,10 @@ class ResultShapeTest(PatternTestCase):
             {
                 "candidates": [],
                 "suppressed": {"count": 0, "locations": []},
-                "filtered": {"count": 0, "reasons": {reason: 0 for reason in patterns.FILTER_REASONS}},
+                "filtered": {
+                    "count": 0,
+                    "reasons": {reason: 0 for reason in patterns.FILTER_REASONS},
+                },
             },
         )
 
@@ -701,8 +862,18 @@ class DeterminismTest(PatternTestCase):
         for seed in ("1", "2", "3"):
             env = dict(os.environ, PYTHONHASHSEED=seed)
             completed = subprocess.run(
-                [sys.executable, "-I", "-c", code, str(_PATTERNS_PATH), json.dumps(unit)],
-                capture_output=True, text=True, env=env, check=True,
+                [
+                    sys.executable,
+                    "-I",
+                    "-c",
+                    code,
+                    str(_PATTERNS_PATH),
+                    json.dumps(unit),
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=True,
             )
             outputs.append(completed.stdout)
         self.assertEqual(outputs[0], outputs[1])
@@ -723,7 +894,9 @@ class PatternErrorTest(PatternTestCase):
         with self.assertRaises(patterns.PatternError):
             patterns.detect([unit])
 
-    def test_history_unit_without_a_usable_commit_is_a_pattern_error_without_the_body(self):
+    def test_history_unit_without_a_usable_commit_is_a_pattern_error_without_the_body(
+        self,
+    ):
         makers = {
             "added_lines": lambda: self.added_lines_unit("secret " + EMAIL + "\n", [1]),
             "commit_message": lambda: self.message_unit("secret " + EMAIL + "\n"),
@@ -744,7 +917,9 @@ class PatternErrorTest(PatternTestCase):
                     self.assertIn("commit がありません", str(raised.exception))
                     self.assertNotIn(EMAIL, str(raised.exception))
 
-    def test_line_numbers_that_do_not_match_the_body_are_a_pattern_error_without_the_body(self):
+    def test_line_numbers_that_do_not_match_the_body_are_a_pattern_error_without_the_body(
+        self,
+    ):
         unit = self.added_lines_unit(EMAIL + "\nsecond\n", [1])
         with self.assertRaises(patterns.PatternError) as raised:
             patterns.detect([unit])

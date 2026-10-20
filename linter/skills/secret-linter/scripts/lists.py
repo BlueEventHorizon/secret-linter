@@ -10,7 +10,7 @@ REQ-032 FNC-3004 / DES-087 L-1「リスト管理（読む）」・L-3「リス�
 | リスト           | 置き場                                                                  | 関数                                    |
 | ---------------- | ----------------------------------------------------------------------- | --------------------------------------- |
 | 許可リスト       | 同梱分（`assets/` の 3 ファイル）                                       | `load_bundled_allowlist()`              |
-| 許可リスト       | プロジェクトの `.forge/secret_allowlist.yaml`                           | `load_project_allowlist(project_root)`  |
+| 許可リスト       | プロジェクトの `.secret-linter/allowlist.yaml`                           | `load_project_allowlist(project_root)`  |
 | 機密の名前リスト | 利用者のホームの `~/.project-secret.yaml`                               | `load_secret_names(home)`               |
 | 全て             | 上の 3 つをまとめて読む                                                 | `load_all(project_root, home)`          |
 
@@ -27,7 +27,7 @@ REQ-032 FNC-3004 / DES-087 L-1「リスト管理（読む）」・L-3「リス�
 
 追記は、既存のファイルの全体（コメント・空行・既存の項目・並び・改行コード・BOM）を変えずに、
 末尾へ項目を加える。同じディレクトリの一時ファイルへ全体を書いてから、1 回の操作（`os.replace`）で
-置き換える。ファイルが無ければ作成する（`.forge/` が無ければ、そのディレクトリも作る）。
+置き換える。ファイルが無ければ作成する（`.secret-linter/` が無ければ、そのディレクトリも作る）。
 追記の前に既存の内容を `parse_list` で検査し、形式不正なら何も書かずに `ListFormatError`（行番号と理由だけ）。
 同じ値が既に項目にあるとき（同じ呼び出しの中の重複を含む）は、重複して追記しない。
 
@@ -104,10 +104,10 @@ BUNDLED_HOST_ONLY_FILENAME = "public_domains_host_only.yaml"
 BUNDLED_PACKAGE_PREFIXES_FILENAME = "public_package_prefixes.yaml"
 
 #: project root からの、プロジェクト許可リストの相対位置
-PROJECT_ALLOWLIST_RELATIVE_PATH = Path(".forge") / "secret_allowlist.yaml"
+PROJECT_ALLOWLIST_RELATIVE_PATH = Path(".secret-linter") / "allowlist.yaml"
 
 #: プロジェクト許可リストのエラー表示名（絶対パスは載せない）
-PROJECT_ALLOWLIST_DISPLAY_NAME = ".forge/secret_allowlist.yaml"
+PROJECT_ALLOWLIST_DISPLAY_NAME = ".secret-linter/allowlist.yaml"
 
 #: 機密の名前リストのファイル名（ホーム直下）
 SECRET_NAMES_FILENAME = ".project-secret.yaml"  # secrets-scan: ignore
@@ -249,14 +249,17 @@ def load_bundled_allowlist() -> BundledAllowlist:
             _ASSETS_DIR / BUNDLED_HOST_ONLY_FILENAME, BUNDLED_HOST_ONLY_FILENAME
         ),
         package_prefixes=load_list(
-            _ASSETS_DIR / BUNDLED_PACKAGE_PREFIXES_FILENAME, BUNDLED_PACKAGE_PREFIXES_FILENAME
+            _ASSETS_DIR / BUNDLED_PACKAGE_PREFIXES_FILENAME,
+            BUNDLED_PACKAGE_PREFIXES_FILENAME,
         ),
     )
 
 
 def load_project_allowlist(project_root) -> list:
-    """プロジェクトの `.forge/secret_allowlist.yaml` を読む。無ければ空のリスト。"""
-    return load_list(project_allowlist_path(project_root), PROJECT_ALLOWLIST_DISPLAY_NAME)
+    """プロジェクトの `.secret-linter/allowlist.yaml` を読む。無ければ空のリスト。"""
+    return load_list(
+        project_allowlist_path(project_root), PROJECT_ALLOWLIST_DISPLAY_NAME
+    )
 
 
 def load_secret_names(home=None) -> list:
@@ -325,15 +328,20 @@ def append_items(path, display_name: str, values, create_mode: int = 0o600) -> i
 
 
 def append_project_allowlist(project_root, values) -> int:
-    """プロジェクトの `.forge/secret_allowlist.yaml` へ追記する（無ければ、ディレクトリごと作成する）。"""
+    """プロジェクトの `.secret-linter/allowlist.yaml` へ追記する（無ければ、ディレクトリごと作成する）。"""
     return append_items(
-        project_allowlist_path(project_root), PROJECT_ALLOWLIST_DISPLAY_NAME, values, create_mode=0o644
+        project_allowlist_path(project_root),
+        PROJECT_ALLOWLIST_DISPLAY_NAME,
+        values,
+        create_mode=0o644,
     )
 
 
 def append_secret_names(values, home=None) -> int:
     """利用者のホームの `~/.project-secret.yaml` へ追記する（無ければ、作成者だけが読める権限で作成する）。"""
-    return append_items(secret_names_path(home), SECRET_NAMES_DISPLAY_NAME, values, create_mode=0o600)
+    return append_items(
+        secret_names_path(home), SECRET_NAMES_DISPLAY_NAME, values, create_mode=0o600
+    )
 
 
 # --- 内部 ---------------------------------------------------------------------
@@ -385,9 +393,13 @@ def check_representable(value, display_name: str) -> None:
     `append_items` が書く前に呼ぶ。書く前に全ての値を検証したい呼び出し元も、同じ検査を使う。
     """
     if not isinstance(value, str) or not value:
-        raise ListWriteError(f"{display_name} へ追記できません: 空の値は項目にできません")
+        raise ListWriteError(
+            f"{display_name} へ追記できません: 空の値は項目にできません"
+        )
     if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
-        raise ListWriteError(f"{display_name} へ追記できません: 制御文字（改行を含む）を含む値は項目にできません")
+        raise ListWriteError(
+            f"{display_name} へ追記できません: 制御文字（改行を含む）を含む値は項目にできません"
+        )
     if '"' in value and "'" in value:
         raise ListWriteError(
             f"{display_name} へ追記できません: `\"` と `'` の両方を含む値は項目にできません"
@@ -397,7 +409,9 @@ def check_representable(value, display_name: str) -> None:
     except ListFormatError:
         round_trip = None
     if round_trip != [value]:
-        raise ListWriteError(f"{display_name} へ追記できません: リストの書式で表せない値です")
+        raise ListWriteError(
+            f"{display_name} へ追記できません: リストの書式で表せない値です"
+        )
 
 
 def _replace_file(path: Path, text: str, display_name: str, create_mode: int) -> None:
@@ -414,14 +428,18 @@ def _replace_file(path: Path, text: str, display_name: str, create_mode: int) ->
         except FileNotFoundError:
             mode = create_mode
         target.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=f".{target.name}.", suffix=".tmp")
+        fd, tmp = tempfile.mkstemp(
+            dir=str(target.parent), prefix=f".{target.name}.", suffix=".tmp"
+        )
         with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
             fh.write(text)
         os.chmod(tmp, mode)
         os.replace(tmp, target)
         tmp = None
     except OSError as exc:
-        raise ListWriteError(f"{display_name} へ書き込めません（{type(exc).__name__}）") from None
+        raise ListWriteError(
+            f"{display_name} へ書き込めません（{type(exc).__name__}）"
+        ) from None
     finally:
         if tmp is not None:
             Path(tmp).unlink(missing_ok=True)
@@ -448,12 +466,12 @@ def _parse_item(stripped: str, display_name: str, lineno: int) -> str:
         for prefix, syntax_name in _UNSUPPORTED_ITEM_PREFIXES:
             if text.startswith(prefix):
                 raise ListFormatError(
-                    display_name, lineno, f"対象外の構文（{syntax_name}）は解析できません"
+                    display_name,
+                    lineno,
+                    f"対象外の構文（{syntax_name}）は解析できません",
                 )
     if text == "-" or text.startswith("- "):
-        raise ListFormatError(
-            display_name, lineno, "入れ子のリストは対象外です"
-        )
+        raise ListFormatError(display_name, lineno, "入れ子のリストは対象外です")
     if text.endswith(":") or ": " in text:
         raise ListFormatError(
             display_name, lineno, "mapping をリスト項目にする構文は対象外です"
@@ -485,5 +503,7 @@ def _reject_inline_comment(text: str, display_name: str, lineno: int) -> None:
     for i, ch in enumerate(text):
         if ch == "#" and i > 0 and text[i - 1] in (" ", "\t"):
             raise ListFormatError(
-                display_name, lineno, "行内コメントは対象外です（コメントは行全体に書きます）"
+                display_name,
+                lineno,
+                "行内コメントは対象外です（コメントは行全体に書きます）",
             )

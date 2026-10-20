@@ -8,7 +8,7 @@ secret-linter が自前で持つ、git の状態から対象ファイルを列�
 入力はすべて明白なプレースホルダだけにする。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_git_targets -v
+  python3 -m unittest tests.test_git_targets -v
 """
 
 import importlib.util
@@ -19,11 +19,17 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPT_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts" / "git_targets.py"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
+    / "git_targets.py"
 )
 
-_spec = importlib.util.spec_from_file_location("secret_linter_git_targets", _SCRIPT_PATH)
+_spec = importlib.util.spec_from_file_location(
+    "secret_linter_git_targets", _SCRIPT_PATH
+)
 git_targets = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(git_targets)
 

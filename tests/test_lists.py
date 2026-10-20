@@ -13,7 +13,7 @@ fixture はすべて本ファイル内の文字列定数で持ち、一時ディ
 （ホームは常に一時ディレクトリを明示して渡す）。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_lists -v
+  python3 -m unittest tests.test_lists -v
 """
 
 import importlib.util
@@ -24,8 +24,12 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPT_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts" / "lists.py"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
+    / "lists.py"
 )
 
 _spec = importlib.util.spec_from_file_location("secret_linter_lists", _SCRIPT_PATH)
@@ -80,9 +84,7 @@ class TestAcceptedFormats(unittest.TestCase):
         self.assertEqual(parse("- 'item-one'\n"), ["item-one"])
 
     def test_quoted_keeps_hash_and_colon_inside(self):
-        self.assertEqual(
-            parse('- "a # b"\n- "key: value"\n'), ["a # b", "key: value"]
-        )
+        self.assertEqual(parse('- "a # b"\n- "key: value"\n'), ["a # b", "key: value"])
 
     def test_quoted_does_not_interpret_escapes(self):
         # 引用符の中は、エスケープを解釈せずそのまま値とする
@@ -95,19 +97,23 @@ class TestAcceptedFormats(unittest.TestCase):
         self.assertEqual(parse("- サンプル商事\n"), ["サンプル商事"])
 
     def test_consistent_indent_is_accepted(self):
-        self.assertEqual(parse("  - item-one\n  - item-two\n"), ["item-one", "item-two"])
+        self.assertEqual(
+            parse("  - item-one\n  - item-two\n"), ["item-one", "item-two"]
+        )
 
     def test_no_trailing_newline(self):
         self.assertEqual(parse("- item-one"), ["item-one"])
 
     def test_crlf(self):
-        self.assertEqual(parse("- item-one\r\n- item-two\r\n"), ["item-one", "item-two"])
+        self.assertEqual(
+            parse("- item-one\r\n- item-two\r\n"), ["item-one", "item-two"]
+        )
 
     def test_bom(self):
         self.assertEqual(parse("﻿- item-one\n"), ["item-one"])
 
     def test_bom_and_crlf_and_comments(self):
-        text = "﻿# comment\r\n\r\n- item-one\r\n- \"item-two\"\r\n"
+        text = '﻿# comment\r\n\r\n- item-one\r\n- "item-two"\r\n'
         self.assertEqual(parse(text), ["item-one", "item-two"])
 
     def test_duplicates_are_kept_by_parser(self):
@@ -218,7 +224,9 @@ class TestFormatErrors(unittest.TestCase):
     def test_inline_comment_after_quoted_item_is_error(self):
         self.assert_error_at('- "item-one"  # note\n', 1)
 
-    def test_unquoted_item_starting_with_asterisk_other_than_wildcard_is_alias_error(self):
+    def test_unquoted_item_starting_with_asterisk_other_than_wildcard_is_alias_error(
+        self,
+    ):
         # `*.` で始まらない `*` の項目は、YAML のエイリアスとして形式不正にする。
         exc = self.assert_error_at("- *alias\n", 1)
         self.assertIn("エイリアス", exc.reason)
@@ -297,7 +305,7 @@ class TestErrorOmitsValues(unittest.TestCase):
 
     def test_load_project_allowlist_error_shows_display_name_only(self):
         with tempfile.TemporaryDirectory() as root:
-            target = Path(root) / ".forge" / "secret_allowlist.yaml"
+            target = Path(root) / ".secret-linter" / "allowlist.yaml"
             target.parent.mkdir()
             target.write_text(f"- ok\n- [{LEAK_MARKER}]\n", encoding="utf-8")
             with self.assertRaises(ListFormatError) as ctx:
@@ -305,7 +313,7 @@ class TestErrorOmitsValues(unittest.TestCase):
             message = str(ctx.exception)
             self.assertNotIn(LEAK_MARKER, message)
             self.assertNotIn(root, message)
-            self.assertIn(".forge/secret_allowlist.yaml", message)
+            self.assertIn(".secret-linter/allowlist.yaml", message)
             self.assertIn("2 行目", message)
 
 
@@ -322,7 +330,9 @@ class TestLoadList(unittest.TestCase):
             path.write_bytes(
                 "﻿# コメント\r\n- item-one\r\n- 'item-two'\r\n".encode("utf-8")
             )
-            self.assertEqual(lists.load_list(path, "list.yaml"), ["item-one", "item-two"])
+            self.assertEqual(
+                lists.load_list(path, "list.yaml"), ["item-one", "item-two"]
+            )
 
     def test_accepts_str_path(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -363,7 +373,7 @@ class TestHomeAndProjectFiles(unittest.TestCase):
     def test_secret_names_read_from_given_home(self):
         with tempfile.TemporaryDirectory() as home:
             (Path(home) / ".project-secret.yaml").write_text(
-                "# names\n- name-one\n- \"name two\"\n", encoding="utf-8"
+                '# names\n- name-one\n- "name two"\n', encoding="utf-8"
             )
             self.assertEqual(lists.load_secret_names(home), ["name-one", "name two"])
 
@@ -385,17 +395,17 @@ class TestHomeAndProjectFiles(unittest.TestCase):
     def test_project_allowlist_missing_is_empty(self):
         with tempfile.TemporaryDirectory() as root:
             self.assertEqual(lists.load_project_allowlist(root), [])
-            # .forge/ も作らない
-            self.assertFalse((Path(root) / ".forge").exists())
+            # .secret-linter/ も作らない
+            self.assertFalse((Path(root) / ".secret-linter").exists())
 
     def test_project_allowlist_missing_even_if_forge_dir_exists(self):
         with tempfile.TemporaryDirectory() as root:
-            (Path(root) / ".forge").mkdir()
+            (Path(root) / ".secret-linter").mkdir()
             self.assertEqual(lists.load_project_allowlist(root), [])
 
     def test_project_allowlist_read(self):
         with tempfile.TemporaryDirectory() as root:
-            target = Path(root) / ".forge" / "secret_allowlist.yaml"
+            target = Path(root) / ".secret-linter" / "allowlist.yaml"
             target.parent.mkdir()
             target.write_text(
                 '- docs.example.com\n- "*.example.org"\n- /docs/path\n',
@@ -407,7 +417,10 @@ class TestHomeAndProjectFiles(unittest.TestCase):
             )
 
     def test_load_all_with_no_project_or_home_files(self):
-        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as home:
+        with (
+            tempfile.TemporaryDirectory() as root,
+            tempfile.TemporaryDirectory() as home,
+        ):
             result = lists.load_all(root, home)
             self.assertEqual(result.project_allowlist, [])
             self.assertEqual(result.secret_names, [])
@@ -415,8 +428,11 @@ class TestHomeAndProjectFiles(unittest.TestCase):
             self.assertTrue(result.bundled_allowlist.host_only_domains)
 
     def test_load_all_reads_each_list_from_its_own_place(self):
-        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as home:
-            target = Path(root) / ".forge" / "secret_allowlist.yaml"
+        with (
+            tempfile.TemporaryDirectory() as root,
+            tempfile.TemporaryDirectory() as home,
+        ):
+            target = Path(root) / ".secret-linter" / "allowlist.yaml"
             target.parent.mkdir()
             target.write_text("- project-item\n", encoding="utf-8")
             (Path(home) / ".project-secret.yaml").write_text(
@@ -427,7 +443,10 @@ class TestHomeAndProjectFiles(unittest.TestCase):
             self.assertEqual(result.secret_names, ["secret-item"])
 
     def test_load_all_propagates_format_error(self):
-        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as home:
+        with (
+            tempfile.TemporaryDirectory() as root,
+            tempfile.TemporaryDirectory() as home,
+        ):
             (Path(home) / ".project-secret.yaml").write_text(
                 f"{LEAK_MARKER}: x\n", encoding="utf-8"
             )
@@ -449,7 +468,9 @@ class TestBundledAllowlist(unittest.TestCase):
         self.assertTrue(self.bundled.package_prefixes)
 
     def test_two_kinds_come_from_different_files(self):
-        self.assertNotEqual(lists.BUNDLED_FULL_FILENAME, lists.BUNDLED_HOST_ONLY_FILENAME)
+        self.assertNotEqual(
+            lists.BUNDLED_FULL_FILENAME, lists.BUNDLED_HOST_ONLY_FILENAME
+        )
         assets = _SCRIPT_PATH.parent.parent / "assets"
         self.assertEqual(
             self.bundled.full_domains,
@@ -498,11 +519,35 @@ class TestBundledAllowlist(unittest.TestCase):
 
     def test_package_prefixes_are_the_decided_set(self):
         expected = {
-            "org.apache", "org.eclipse", "org.junit", "org.jetbrains", "org.springframework", "org.slf4j",
-            "org.gradle", "org.mozilla", "org.w3c", "org.xml", "com.apple", "com.google", "com.android",
-            "com.microsoft", "com.facebook", "com.squareup", "com.sun", "com.oracle", "com.fasterxml",
-            "com.amazonaws", "com.jetbrains", "io.flutter", "io.netty", "io.reactivex", "io.grpc",
-            "io.micrometer", "io.opentelemetry", "net.java", "net.sf",
+            "org.apache",
+            "org.eclipse",
+            "org.junit",
+            "org.jetbrains",
+            "org.springframework",
+            "org.slf4j",
+            "org.gradle",
+            "org.mozilla",
+            "org.w3c",
+            "org.xml",
+            "com.apple",
+            "com.google",
+            "com.android",
+            "com.microsoft",
+            "com.facebook",
+            "com.squareup",
+            "com.sun",
+            "com.oracle",
+            "com.fasterxml",
+            "com.amazonaws",
+            "com.jetbrains",
+            "io.flutter",
+            "io.netty",
+            "io.reactivex",
+            "io.grpc",
+            "io.micrometer",
+            "io.opentelemetry",
+            "net.java",
+            "net.sf",
         }
         self.assertEqual(set(self.bundled.package_prefixes), expected)
         self.assertEqual(len(self.bundled.package_prefixes), len(expected))
@@ -512,7 +557,10 @@ class TestBundledAllowlist(unittest.TestCase):
             self.assertNotIn(item, self.bundled.package_prefixes)
 
     def test_load_all_returns_the_same_bundled_lists(self):
-        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as home:
+        with (
+            tempfile.TemporaryDirectory() as root,
+            tempfile.TemporaryDirectory() as home,
+        ):
             self.assertEqual(lists.load_all(root, home).bundled_allowlist, self.bundled)
 
 

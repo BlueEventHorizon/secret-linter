@@ -14,7 +14,15 @@ from pathlib import Path
 
 script = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(script.parent))
-sys.path.append(str(Path(__file__).resolve().parents[3] / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"))
+sys.path.append(
+    str(
+        Path(__file__).resolve().parents[1]
+        / "linter"
+        / "skills"
+        / "secret-linter"
+        / "scripts"
+    )
+)
 
 import judgment  # noqa: E402
 

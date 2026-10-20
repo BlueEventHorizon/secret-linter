@@ -16,7 +16,7 @@ DES-087 のモジュール表 R-1 と、テスト表 SC-13・SC-14・SC-15 の�
 入力は明白なプレースホルダだけを使い、機密らしい値は連結して組み立てる。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_report -v
+  python3 -m unittest tests.test_report -v
 """
 
 import json
@@ -29,8 +29,11 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 SCRIPT = _SCRIPTS_DIR / "report.py"
 sys.path.insert(0, str(_SCRIPTS_DIR))
@@ -47,7 +50,14 @@ OTHER_PASS_VALUE = "docs.python.org"
 
 
 def candidate(cid, kind, value, unit_id="U0001", line=1, commit=None):
-    item = {"candidate_id": cid, "source": "pattern", "unit_id": unit_id, "line": line, "kind": kind, "value": value}
+    item = {
+        "candidate_id": cid,
+        "source": "pattern",
+        "unit_id": unit_id,
+        "line": line,
+        "kind": kind,
+        "value": value,
+    }
     if commit is not None:
         item["commit"] = commit
     return item
@@ -55,8 +65,13 @@ def candidate(cid, kind, value, unit_id="U0001", line=1, commit=None):
 
 def judged(entries):
     """``[(candidate_id, class), ...]`` から判定ファイルの中身を作る。全体は規則どおりに決める。"""
-    results = [{"candidate_id": cid, "class": cls, "reason": "test"} for cid, cls in entries]
-    return {"candidates": results, "class": judgment.overall_class(cls for _, cls in entries)}
+    results = [
+        {"candidate_id": cid, "class": cls, "reason": "test"} for cid, cls in entries
+    ]
+    return {
+        "candidates": results,
+        "class": judgment.overall_class(cls for _, cls in entries),
+    }
 
 
 class ReportTestCase(unittest.TestCase):
@@ -79,21 +94,38 @@ class ReportTestCase(unittest.TestCase):
         env.pop("TMP", None)
         return env
 
-    def make_workspace(self, candidates, judgments, suppressed=None, skipped=None, units=None):
+    def make_workspace(
+        self, candidates, judgments, suppressed=None, skipped=None, units=None
+    ):
         """作業領域を作り、入力を書く。``judgments`` は判定ファイルの中身の配列（0001 から順に書く）。"""
         with mock.patch.object(tempfile, "tempdir", str(self.tmpdir)):
             inspection_id = workspace.create()
-            workspace.write(inspection_id, "units.json", {
-                "units": units if units is not None else [
-                    {"unit_id": "U0001", "kind": "file", "label": "docs/a.md", "text_path": "/dev/null"},
-                ],
-                "skipped": skipped or [],
-            })
-            workspace.write(inspection_id, "pattern.json", {
-                "candidates": candidates,
-                "suppressed": suppressed or {"count": 0, "locations": []},
-                "filtered": {"count": 0, "reasons": {}},
-            })
+            workspace.write(
+                inspection_id,
+                "units.json",
+                {
+                    "units": units
+                    if units is not None
+                    else [
+                        {
+                            "unit_id": "U0001",
+                            "kind": "file",
+                            "label": "docs/a.md",
+                            "text_path": "/dev/null",
+                        },
+                    ],
+                    "skipped": skipped or [],
+                },
+            )
+            workspace.write(
+                inspection_id,
+                "pattern.json",
+                {
+                    "candidates": candidates,
+                    "suppressed": suppressed or {"count": 0, "locations": []},
+                    "filtered": {"count": 0, "reasons": {}},
+                },
+            )
             for payload in judgments:
                 workspace.write_next(inspection_id, "judgment", payload)
         return inspection_id
@@ -103,7 +135,10 @@ class ReportTestCase(unittest.TestCase):
 
     def run_report(self, *args):
         completed = subprocess.run(
-            [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=self.env(),
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            env=self.env(),
         )
         payload = json.loads(completed.stdout) if completed.stdout.strip() else None
         return completed.returncode, payload, completed
@@ -123,8 +158,13 @@ class ClassTest(ReportTestCase):
     """SC-13・SC-14: 区分は合格・不合格の 2 値で、値を含まない。"""
 
     def test_fail_class_has_no_value(self):
-        candidates = [candidate("P0001", "jwt", FAIL_VALUE), candidate("P0002", "domain", PASS_VALUE)]
-        inspection_id = self.make_workspace(candidates, [judged([("P0001", "fail"), ("P0002", "pass")])])
+        candidates = [
+            candidate("P0001", "jwt", FAIL_VALUE),
+            candidate("P0002", "domain", PASS_VALUE),
+        ]
+        inspection_id = self.make_workspace(
+            candidates, [judged([("P0001", "fail"), ("P0002", "pass")])]
+        )
 
         code, payload, _ = self.report(inspection_id)
 
@@ -136,7 +176,8 @@ class ClassTest(ReportTestCase):
 
     def test_pass_class(self):
         inspection_id = self.make_workspace(
-            [candidate("P0001", "domain", PASS_VALUE)], [judged([("P0001", "pass")])],
+            [candidate("P0001", "domain", PASS_VALUE)],
+            [judged([("P0001", "pass")])],
         )
         code, payload, _ = self.report(inspection_id)
         self.assertEqual((code, payload["class"]), (0, "合格"))
@@ -148,7 +189,9 @@ class ClassTest(ReportTestCase):
         }
         for expected, entries in cases.items():
             with self.subTest(expected=expected):
-                inspection_id = self.make_workspace([candidate("P0001", "domain", CONFIRM_VALUE)], [judged(entries)])
+                inspection_id = self.make_workspace(
+                    [candidate("P0001", "domain", CONFIRM_VALUE)], [judged(entries)]
+                )
                 self.assertEqual(self.report(inspection_id)[1]["class"], expected)
 
 
@@ -157,7 +200,8 @@ class BodyTest(ReportTestCase):
 
     def test_fail_value_is_shown_as_is_with_position_kind_and_verdict(self):
         inspection_id = self.make_workspace(
-            [candidate("P0001", "jwt", FAIL_VALUE, line=12)], [judged([("P0001", "fail")])],
+            [candidate("P0001", "jwt", FAIL_VALUE, line=12)],
+            [judged([("P0001", "fail")])],
         )
         _, payload, _ = self.report(inspection_id)
         body = payload["body"]
@@ -169,44 +213,61 @@ class BodyTest(ReportTestCase):
     def test_fail_report_ends_with_the_way_to_pass_a_false_positive(self):
         # 不合格の結果は、誤検出を通す方法（抑制マーカー）を示す。示さなければ、利用者も AI も、止まったまま打つ手を知らない
         inspection_id = self.make_workspace(
-            [candidate("P0001", "jwt", FAIL_VALUE, line=12)], [judged([("P0001", "fail")])],
+            [candidate("P0001", "jwt", FAIL_VALUE, line=12)],
+            [judged([("P0001", "fail")])],
         )
         body = self.report(inspection_id)[1]["body"]
-        self.assertTrue(body.rstrip().splitlines()[-1].find("secrets-scan: ignore") >= 0)
+        self.assertTrue(
+            body.rstrip().splitlines()[-1].find("secrets-scan: ignore") >= 0
+        )
 
     def test_pass_report_does_not_show_the_way_to_pass(self):
         inspection_id = self.make_workspace(
-            [candidate("P0001", "domain", PASS_VALUE)], [judged([("P0001", "pass")])],
+            [candidate("P0001", "domain", PASS_VALUE)],
+            [judged([("P0001", "pass")])],
         )
         self.assertNotIn("secrets-scan: ignore", self.report(inspection_id)[1]["body"])
 
     def test_value_with_special_characters_is_unchanged(self):
         value = 'p@ss"w\\ord<>&' + "日本語"
         inspection_id = self.make_workspace(
-            [candidate("P0001", "secret_assignment", value)], [judged([("P0001", "fail")])],
+            [candidate("P0001", "secret_assignment", value)],
+            [judged([("P0001", "fail")])],
         )
         self.assertIn(value, self.report(inspection_id)[1]["body"])
 
     def test_commit_is_shown_for_history_candidates(self):
-        units = [{"unit_id": "U0001", "kind": "added_lines", "label": "src/x.py", "commit": "abc1234",
-                  "text_path": "/dev/null"}]
+        units = [
+            {
+                "unit_id": "U0001",
+                "kind": "added_lines",
+                "label": "src/x.py",
+                "commit": "abc1234",
+                "text_path": "/dev/null",
+            }
+        ]
         inspection_id = self.make_workspace(
             [candidate("P0001", "jwt", FAIL_VALUE, line=3, commit="abc1234")],
-            [judged([("P0001", "fail")])], units=units,
+            [judged([("P0001", "fail")])],
+            units=units,
         )
         body = self.report(inspection_id)[1]["body"]
         self.assertIn("src/x.py:3 [commit abc1234]", body)
 
     def test_candidate_without_line_shows_label_only(self):
         inspection_id = self.make_workspace(
-            [candidate("P0001", "jwt", FAIL_VALUE, line=None)], [judged([("P0001", "fail")])],
+            [candidate("P0001", "jwt", FAIL_VALUE, line=None)],
+            [judged([("P0001", "fail")])],
         )
         body = self.report(inspection_id)[1]["body"]
         self.assertIn("docs/a.md /", body)
         self.assertNotIn("docs/a.md:", body)
 
     def test_confirm_resolved_by_answer_shows_before_and_after(self):
-        candidates = [candidate("P0001", "domain", CONFIRM_VALUE, line=2), candidate("P0002", "domain", FAIL_VALUE, line=5)]
+        candidates = [
+            candidate("P0001", "domain", CONFIRM_VALUE, line=2),
+            candidate("P0002", "domain", FAIL_VALUE, line=5),
+        ]
         first = judged([("P0001", "confirm"), ("P0002", "confirm")])
         second = judged([("P0001", "pass"), ("P0002", "fail")])
         inspection_id = self.make_workspace(candidates, [first, second])
@@ -225,10 +286,18 @@ class BodyTest(ReportTestCase):
             candidate("P0001", "domain", PASS_VALUE, line=1),
             candidate("P0002", "jwt", FAIL_VALUE, line=2),
         ]
-        suppressed = {"count": 1, "locations": [{"unit_id": "U0001", "label": "docs/a.md", "line": 9, "kind": "email"}]}
+        suppressed = {
+            "count": 1,
+            "locations": [
+                {"unit_id": "U0001", "label": "docs/a.md", "line": 9, "kind": "email"}
+            ],
+        }
         skipped = [{"label": "big.bin", "reason": "too large"}]
         inspection_id = self.make_workspace(
-            candidates, [judged([("P0001", "pass"), ("P0002", "fail")])], suppressed=suppressed, skipped=skipped,
+            candidates,
+            [judged([("P0001", "pass"), ("P0002", "fail")])],
+            suppressed=suppressed,
+            skipped=skipped,
         )
 
         body = self.report(inspection_id)[1]["body"]
@@ -242,7 +311,8 @@ class BodyTest(ReportTestCase):
 
     def test_empty_sections_are_not_listed(self):
         inspection_id = self.make_workspace(
-            [candidate("P0001", "domain", PASS_VALUE)], [judged([("P0001", "pass")])],
+            [candidate("P0001", "domain", PASS_VALUE)],
+            [judged([("P0001", "pass")])],
         )
         body = self.report(inspection_id)[1]["body"]
         headings = [line for line in body.splitlines() if line.startswith("## ")]
@@ -266,11 +336,23 @@ class PassSummaryTest(ReportTestCase):
             candidate("P0004", "domain", OTHER_PASS_VALUE, line=6),
         ]
         units = [
-            {"unit_id": "U0001", "kind": "file", "label": "docs/a.md", "text_path": "/dev/null"},
-            {"unit_id": "U0002", "kind": "file", "label": "docs/b.md", "text_path": "/dev/null"},
+            {
+                "unit_id": "U0001",
+                "kind": "file",
+                "label": "docs/a.md",
+                "text_path": "/dev/null",
+            },
+            {
+                "unit_id": "U0002",
+                "kind": "file",
+                "label": "docs/b.md",
+                "text_path": "/dev/null",
+            },
         ]
         inspection_id = self.make_workspace(
-            candidates, [judged([(c["candidate_id"], "pass") for c in candidates])], units=units,
+            candidates,
+            [judged([(c["candidate_id"], "pass") for c in candidates])],
+            units=units,
         )
 
         body = self.report(inspection_id)[1]["body"]
@@ -280,22 +362,34 @@ class PassSummaryTest(ReportTestCase):
         self.assertIn("3 件", lines_with_value[0])
         self.assertIn("docs/a.md:4", lines_with_value[0])
         self.assertNotIn("docs/a.md:8", body)
-        self.assertEqual(len([line for line in body.splitlines() if OTHER_PASS_VALUE in line]), 1)
+        self.assertEqual(
+            len([line for line in body.splitlines() if OTHER_PASS_VALUE in line]), 1
+        )
 
     def test_same_value_with_different_kind_is_not_merged(self):
         candidates = [
             candidate("P0001", "domain", PASS_VALUE, line=1),
             candidate("P0002", "internal_host", PASS_VALUE, line=2),
         ]
-        inspection_id = self.make_workspace(candidates, [judged([("P0001", "pass"), ("P0002", "pass")])])
+        inspection_id = self.make_workspace(
+            candidates, [judged([("P0001", "pass"), ("P0002", "pass")])]
+        )
         body = self.report(inspection_id)[1]["body"]
-        self.assertEqual(len([line for line in body.splitlines() if PASS_VALUE in line]), 2)
+        self.assertEqual(
+            len([line for line in body.splitlines() if PASS_VALUE in line]), 2
+        )
 
     def test_many_pass_candidates_stay_small(self):
-        candidates = [candidate(f"P{n:04d}", "domain", PASS_VALUE, line=n) for n in range(1, 201)]
-        inspection_id = self.make_workspace(candidates, [judged([(c["candidate_id"], "pass") for c in candidates])])
+        candidates = [
+            candidate(f"P{n:04d}", "domain", PASS_VALUE, line=n) for n in range(1, 201)
+        ]
+        inspection_id = self.make_workspace(
+            candidates, [judged([(c["candidate_id"], "pass") for c in candidates])]
+        )
         body = self.report(inspection_id)[1]["body"]
-        self.assertEqual(len([line for line in body.splitlines() if PASS_VALUE in line]), 1)
+        self.assertEqual(
+            len([line for line in body.splitlines() if PASS_VALUE in line]), 1
+        )
         self.assertIn("200 件", body)
 
 
@@ -303,10 +397,13 @@ class SuppressedAndSkippedTest(ReportTestCase):
     """SC-15: 抑制マーカー付きの件数と位置、スキップと理由。"""
 
     def test_suppressed_count_and_locations(self):
-        suppressed = {"count": 2, "locations": [
-            {"unit_id": "U0001", "label": "docs/a.md", "line": 4, "kind": "email"},
-            {"unit_id": "U0001", "label": "docs/a.md", "line": 9, "kind": "domain"},
-        ]}
+        suppressed = {
+            "count": 2,
+            "locations": [
+                {"unit_id": "U0001", "label": "docs/a.md", "line": 4, "kind": "email"},
+                {"unit_id": "U0001", "label": "docs/a.md", "line": 9, "kind": "domain"},
+            ],
+        }
         inspection_id = self.make_workspace([], [judged([])], suppressed=suppressed)
 
         body = self.report(inspection_id)[1]["body"]
@@ -316,11 +413,27 @@ class SuppressedAndSkippedTest(ReportTestCase):
         self.assertIn("docs/a.md:9 / domain", body)
 
     def test_suppressed_in_history_unit_shows_commit(self):
-        units = [{"unit_id": "U0001", "kind": "added_lines", "label": "src/x.py", "commit": "abc1234",
-                  "text_path": "/dev/null"}]
-        suppressed = {"count": 1, "locations": [{"unit_id": "U0001", "label": "src/x.py", "line": 2, "kind": "email"}]}
-        inspection_id = self.make_workspace([], [judged([])], suppressed=suppressed, units=units)
-        self.assertIn("src/x.py:2 [commit abc1234]", self.report(inspection_id)[1]["body"])
+        units = [
+            {
+                "unit_id": "U0001",
+                "kind": "added_lines",
+                "label": "src/x.py",
+                "commit": "abc1234",
+                "text_path": "/dev/null",
+            }
+        ]
+        suppressed = {
+            "count": 1,
+            "locations": [
+                {"unit_id": "U0001", "label": "src/x.py", "line": 2, "kind": "email"}
+            ],
+        }
+        inspection_id = self.make_workspace(
+            [], [judged([])], suppressed=suppressed, units=units
+        )
+        self.assertIn(
+            "src/x.py:2 [commit abc1234]", self.report(inspection_id)[1]["body"]
+        )
 
     def test_skipped_with_reason(self):
         skipped = [
@@ -345,7 +458,8 @@ class LatestJudgmentTest(ReportTestCase):
     def test_highest_numbered_judgment_is_used(self):
         candidates = [candidate("P0001", "domain", CONFIRM_VALUE)]
         inspection_id = self.make_workspace(
-            candidates, [judged([("P0001", "confirm")]), judged([("P0001", "pass")])],
+            candidates,
+            [judged([("P0001", "confirm")]), judged([("P0001", "pass")])],
         )
         code, payload, _ = self.report(inspection_id)
         self.assertEqual((code, payload["class"]), (0, "合格"))
@@ -373,7 +487,8 @@ class IncompleteTest(ReportTestCase):
 
     def test_remaining_confirm_returns_1_without_value(self):
         inspection_id = self.make_workspace(
-            [candidate("P0001", "domain", CONFIRM_VALUE)], [judged([("P0001", "confirm")])],
+            [candidate("P0001", "domain", CONFIRM_VALUE)],
+            [judged([("P0001", "confirm")])],
         )
         code, payload, completed = self.report(inspection_id)
         self.assertEqual(code, 1)
@@ -381,14 +496,21 @@ class IncompleteTest(ReportTestCase):
         self.assertNotIn(CONFIRM_VALUE, completed.stdout + completed.stderr)
 
     def test_remaining_confirm_with_fail_returns_1(self):
-        candidates = [candidate("P0001", "domain", CONFIRM_VALUE), candidate("P0002", "jwt", FAIL_VALUE)]
-        inspection_id = self.make_workspace(candidates, [judged([("P0001", "confirm"), ("P0002", "fail")])])
+        candidates = [
+            candidate("P0001", "domain", CONFIRM_VALUE),
+            candidate("P0002", "jwt", FAIL_VALUE),
+        ]
+        inspection_id = self.make_workspace(
+            candidates, [judged([("P0001", "confirm"), ("P0002", "fail")])]
+        )
         code, payload, completed = self.report(inspection_id)
         self.assertEqual(code, 1)
         self.assertNotIn(FAIL_VALUE, completed.stdout + completed.stderr)
 
     def test_missing_judgment_returns_1(self):
-        inspection_id = self.make_workspace([candidate("P0001", "domain", CONFIRM_VALUE)], [])
+        inspection_id = self.make_workspace(
+            [candidate("P0001", "domain", CONFIRM_VALUE)], []
+        )
         code, payload, completed = self.report(inspection_id)
         self.assertEqual(code, 1)
         self.assertIn("errors", payload)
@@ -406,7 +528,8 @@ class IncompleteTest(ReportTestCase):
 
     def test_candidate_missing_from_judgment_returns_1(self):
         inspection_id = self.make_workspace(
-            [candidate("P0001", "jwt", FAIL_VALUE)], [judged([])],
+            [candidate("P0001", "jwt", FAIL_VALUE)],
+            [judged([])],
         )
         code, payload, completed = self.report(inspection_id)
         self.assertEqual(code, 1)
@@ -415,7 +538,9 @@ class IncompleteTest(ReportTestCase):
     def test_broken_judgment_returns_1_without_leaking_content(self):
         leaked = "SENTINEL-" + "BROKEN-CONTENT"
         inspection_id = self.make_workspace([], [judged([])])
-        (self.workspace_dir(inspection_id) / "judgment" / "0001.json").write_text("{" + leaked, encoding="utf-8")
+        (self.workspace_dir(inspection_id) / "judgment" / "0001.json").write_text(
+            "{" + leaked, encoding="utf-8"
+        )
         code, payload, completed = self.report(inspection_id)
         self.assertEqual(code, 1)
         self.assertNotIn(leaked, completed.stdout + completed.stderr)
@@ -423,7 +548,9 @@ class IncompleteTest(ReportTestCase):
     def test_broken_pattern_json_returns_1_without_leaking_content(self):
         leaked = "SENTINEL-" + "PATTERN-CONTENT"
         inspection_id = self.make_workspace([], [judged([])])
-        (self.workspace_dir(inspection_id) / "pattern.json").write_text("{" + leaked, encoding="utf-8")
+        (self.workspace_dir(inspection_id) / "pattern.json").write_text(
+            "{" + leaked, encoding="utf-8"
+        )
         code, payload, completed = self.report(inspection_id)
         self.assertEqual(code, 1)
         self.assertNotIn(leaked, completed.stdout + completed.stderr)
@@ -440,8 +567,13 @@ class NoFilesLeftTest(ReportTestCase):
     """SC-14: 結果を、作業領域の外のファイルに残さない（作業領域の中にも書かない）。"""
 
     def test_no_file_is_created_outside_or_inside_workspace(self):
-        candidates = [candidate("P0001", "jwt", FAIL_VALUE), candidate("P0002", "domain", PASS_VALUE)]
-        inspection_id = self.make_workspace(candidates, [judged([("P0001", "fail"), ("P0002", "pass")])])
+        candidates = [
+            candidate("P0001", "jwt", FAIL_VALUE),
+            candidate("P0002", "domain", PASS_VALUE),
+        ]
+        inspection_id = self.make_workspace(
+            candidates, [judged([("P0001", "fail"), ("P0002", "pass")])]
+        )
         before_all = self.snapshot(self.tmpdir, self.home, self.root)
 
         for _ in range(2):
@@ -451,17 +583,26 @@ class NoFilesLeftTest(ReportTestCase):
         self.assertEqual(self.snapshot(self.tmpdir, self.home, self.root), before_all)
 
     def test_failure_leaves_no_file_either(self):
-        inspection_id = self.make_workspace([candidate("P0001", "domain", CONFIRM_VALUE)], [judged([("P0001", "confirm")])])
+        inspection_id = self.make_workspace(
+            [candidate("P0001", "domain", CONFIRM_VALUE)],
+            [judged([("P0001", "confirm")])],
+        )
         before_all = self.snapshot(self.tmpdir, self.home, self.root)
         self.assertEqual(self.report(inspection_id)[0], 1)
         self.assertEqual(self.snapshot(self.tmpdir, self.home, self.root), before_all)
 
     def test_cwd_is_not_written(self):
-        inspection_id = self.make_workspace([candidate("P0001", "jwt", FAIL_VALUE)], [judged([("P0001", "fail")])])
+        inspection_id = self.make_workspace(
+            [candidate("P0001", "jwt", FAIL_VALUE)], [judged([("P0001", "fail")])]
+        )
         cwd = self.root
         before = self.snapshot(cwd)
         completed = subprocess.run(
-            [sys.executable, str(SCRIPT), inspection_id], capture_output=True, text=True, env=self.env(), cwd=str(cwd),
+            [sys.executable, str(SCRIPT), inspection_id],
+            capture_output=True,
+            text=True,
+            env=self.env(),
+            cwd=str(cwd),
         )
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(self.snapshot(cwd), before)
@@ -471,11 +612,18 @@ class ErrorOutputTest(ReportTestCase):
     """検査を実行できなかった場合のエラー出力（標準出力の errors・標準エラー）に値が含まれない。"""
 
     def test_stderr_and_errors_have_no_value_on_every_failure_path(self):
-        value_candidates = [candidate("P0001", "jwt", FAIL_VALUE), candidate("P0002", "domain", CONFIRM_VALUE)]
+        value_candidates = [
+            candidate("P0001", "jwt", FAIL_VALUE),
+            candidate("P0002", "domain", CONFIRM_VALUE),
+        ]
         paths = {
-            "confirm_remains": self.make_workspace(value_candidates, [judged([("P0001", "fail"), ("P0002", "confirm")])]),
+            "confirm_remains": self.make_workspace(
+                value_candidates, [judged([("P0001", "fail"), ("P0002", "confirm")])]
+            ),
             "no_judgment": self.make_workspace(value_candidates, []),
-            "not_in_judgment": self.make_workspace(value_candidates, [judged([("P0001", "fail")])]),
+            "not_in_judgment": self.make_workspace(
+                value_candidates, [judged([("P0001", "fail")])]
+            ),
         }
         for name, inspection_id in paths.items():
             with self.subTest(path=name):

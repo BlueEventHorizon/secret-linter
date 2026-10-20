@@ -22,8 +22,11 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
@@ -35,14 +38,29 @@ RUNNER = Path(__file__).resolve().with_name("run_no_reserved.py")
 #: 語彙の一覧（予約値の語だけ）。``test_vocab.py`` が、全語について本番の設定で pass、``no_reserved()`` の中で
 #: confirm になることを確かめる
 VOCAB_DOMAINS = (
-    "example.com", "docs.example.com", "example.net", "example.org", "a.b.example.org",
-    "foo.example", "foo.test", "foo.invalid", "foo.localhost", "localhost",
+    "example.com",
+    "docs.example.com",
+    "example.net",
+    "example.org",
+    "a.b.example.org",
+    "foo.example",
+    "foo.test",
+    "foo.invalid",
+    "foo.localhost",
+    "localhost",
 )
 VOCAB_EMAILS = (
-    "someone@example.com", "x@mail.example.org", "x@example.net", "x@corp.test", "x@localhost",
+    "someone@example.com",
+    "x@mail.example.org",
+    "x@example.net",
+    "x@corp.test",
+    "x@localhost",
 )
 VOCAB_IPS = (
-    "192.0.2.1", "198.51.100.7", "203.0.113.200", "2001:db8::1",
+    "192.0.2.1",
+    "198.51.100.7",
+    "203.0.113.200",
+    "2001:db8::1",
 )
 
 

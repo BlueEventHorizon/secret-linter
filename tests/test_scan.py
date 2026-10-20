@@ -16,7 +16,7 @@ DES-087 のモジュール表 W-1・T-1・W-2 と、テスト表 SC-01・02・03
 入力は明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_scan -v
+  python3 -m unittest tests.test_scan -v
 """
 
 import importlib.util
@@ -33,8 +33,11 @@ from pathlib import Path
 from unittest import mock
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 SCRIPT = _SCRIPTS_DIR / "scan.py"
 
@@ -49,7 +52,9 @@ BODY_MARKER = "PLACEHOLDER-BODY-MARKER"
 
 
 def _git(args, cwd):
-    subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, check=True)
+    subprocess.run(
+        ["git", *args], cwd=str(cwd), capture_output=True, text=True, check=True
+    )
 
 
 def init_repo(root: Path):
@@ -106,7 +111,9 @@ class ScanTestCase(unittest.TestCase):
     def run_scan(self, *args):
         completed = subprocess.run(
             [sys.executable, str(SCRIPT), *args],
-            capture_output=True, text=True, env=self.env(),
+            capture_output=True,
+            text=True,
+            env=self.env(),
         )
         payload = json.loads(completed.stdout) if completed.stdout.strip() else None
         return completed.returncode, payload, completed
@@ -115,7 +122,9 @@ class ScanTestCase(unittest.TestCase):
         """scan.run_cli を同じプロセスで呼ぶ。置き場は専用ディレクトリへ向ける。"""
         buffer = io.StringIO()
         with mock.patch.object(tempfile, "tempdir", str(self.tmpdir)):
-            with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(self._base_path)}):
+            with mock.patch.dict(
+                os.environ, {"GIT_CEILING_DIRECTORIES": str(self._base_path)}
+            ):
                 with redirect_stdout(buffer):
                     code = scan.run_cli(list(argv))
         return code, json.loads(buffer.getvalue())
@@ -135,17 +144,23 @@ class SuccessTest(ScanTestCase):
         code, payload, _ = self.run_scan("--project-root", str(self.root), "--diff")
 
         self.assertEqual(code, 0)
-        self.assertEqual(sorted(payload), ["inspection_id", "pattern_candidate_count", "unit_count"])
+        self.assertEqual(
+            sorted(payload), ["inspection_id", "pattern_candidate_count", "unit_count"]
+        )
         self.assertEqual(payload["unit_count"], 1)
         self.assertRegex(payload["inspection_id"], r"^[0-9a-f]{32}$")
         data = self.read_units(payload["inspection_id"])
         self.assertEqual(data["skipped"], [])
         self.assertEqual(
             data["units"],
-            [{
-                "unit_id": "U0001", "kind": "file", "label": "new.txt",
-                "text_path": str(self.root / "new.txt"),
-            }],
+            [
+                {
+                    "unit_id": "U0001",
+                    "kind": "file",
+                    "label": "new.txt",
+                    "text_path": str(self.root / "new.txt"),
+                }
+            ],
         )
 
     def test_scope_omitted_behaves_as_diff(self):
@@ -171,18 +186,24 @@ class SuccessTest(ScanTestCase):
         write(self.root, "src/c.py")
         commit_all(self.root)
 
-        code, payload, _ = self.run_scan("--project-root", str(self.root), "--dirs", "docs")
+        code, payload, _ = self.run_scan(
+            "--project-root", str(self.root), "--dirs", "docs"
+        )
 
         self.assertEqual(code, 0)
         data = self.read_units(payload["inspection_id"])
-        self.assertEqual([u["label"] for u in data["units"]], ["docs/a.md", "docs/sub/b.md"])
+        self.assertEqual(
+            [u["label"] for u in data["units"]], ["docs/a.md", "docs/sub/b.md"]
+        )
         self.assertEqual(payload["unit_count"], 2)
 
     def test_files_accepts_a_file_outside_the_project_root(self):
         # 非 git のプロジェクトでも、--files は git を使わず外部のファイルを受理する
         external = write(self.outside, "body.txt")
 
-        code, payload, _ = self.run_scan("--project-root", str(self.root), "--files", str(external))
+        code, payload, _ = self.run_scan(
+            "--project-root", str(self.root), "--files", str(external)
+        )
 
         self.assertEqual(code, 0)
         unit = self.read_units(payload["inspection_id"])["units"][0]
@@ -213,12 +234,16 @@ class SuccessTest(ScanTestCase):
         self.assertEqual(code, 0)
         self.assertEqual(payload["unit_count"], 0)
         self.assertNotIn("errors", payload)
-        self.assertEqual(self.read_units(payload["inspection_id"]), {"units": [], "skipped": []})
+        self.assertEqual(
+            self.read_units(payload["inspection_id"]), {"units": [], "skipped": []}
+        )
 
     def test_zero_targets_for_dirs_is_success(self):
         self.git_project()
         (self.root / "empty").mkdir()
-        code, payload, _ = self.run_scan("--project-root", str(self.root), "--dirs", "empty")
+        code, payload, _ = self.run_scan(
+            "--project-root", str(self.root), "--dirs", "empty"
+        )
         self.assertEqual(code, 0)
         self.assertEqual(payload["unit_count"], 0)
 
@@ -234,7 +259,9 @@ class SuccessTest(ScanTestCase):
 
     def test_stdout_is_a_single_json_object_without_body(self):
         write(self.root, "a.txt")
-        code, _, completed = self.run_scan("--project-root", str(self.root), "--files", "a.txt")
+        code, _, completed = self.run_scan(
+            "--project-root", str(self.root), "--files", "a.txt"
+        )
         self.assertEqual(code, 0)
         self.assertEqual(len(completed.stdout.strip().splitlines()), 1)
         self.assertNotIn(BODY_MARKER, completed.stdout)
@@ -252,13 +279,17 @@ class FailureExitOneTest(ScanTestCase):
 
     def test_missing_file(self):
         self.assert_failed_cleanly(
-            self.run_scan("--project-root", str(self.root), "--files", "no-such-file.txt")
+            self.run_scan(
+                "--project-root", str(self.root), "--files", "no-such-file.txt"
+            )
         )
 
     def test_missing_file_among_existing_ones(self):
         write(self.root, "a.txt")
         self.assert_failed_cleanly(
-            self.run_scan("--project-root", str(self.root), "--files", "a.txt", "no-such-file.txt")
+            self.run_scan(
+                "--project-root", str(self.root), "--files", "a.txt", "no-such-file.txt"
+            )
         )
 
     def test_directory_given_to_files(self):
@@ -275,7 +306,9 @@ class FailureExitOneTest(ScanTestCase):
 
     def test_project_root_that_is_not_a_git_repository_for_diff(self):
         write(self.root, "a.txt")
-        self.assert_failed_cleanly(self.run_scan("--project-root", str(self.root), "--diff"))
+        self.assert_failed_cleanly(
+            self.run_scan("--project-root", str(self.root), "--diff")
+        )
 
     def test_project_root_that_is_not_a_git_repository_for_default_scope(self):
         self.assert_failed_cleanly(self.run_scan("--project-root", str(self.root)))
@@ -283,7 +316,9 @@ class FailureExitOneTest(ScanTestCase):
     def test_project_root_that_is_not_a_git_repository_for_dirs(self):
         (self.root / "docs").mkdir()
         write(self.root, "docs/a.md")
-        self.assert_failed_cleanly(self.run_scan("--project-root", str(self.root), "--dirs", "docs"))
+        self.assert_failed_cleanly(
+            self.run_scan("--project-root", str(self.root), "--dirs", "docs")
+        )
 
     def test_existing_workspaces_of_other_inspections_are_kept(self):
         write(self.root, "a.txt")
@@ -293,14 +328,22 @@ class FailureExitOneTest(ScanTestCase):
 
     def test_workspace_creation_failure_is_exit_1(self):
         write(self.root, "a.txt")
-        with mock.patch.object(scan.workspace, "create", side_effect=scan.workspace.WorkspaceError("作れません")):
-            code, payload = self.run_in_process("--project-root", str(self.root), "--files", "a.txt")
+        with mock.patch.object(
+            scan.workspace,
+            "create",
+            side_effect=scan.workspace.WorkspaceError("作れません"),
+        ):
+            code, payload = self.run_in_process(
+                "--project-root", str(self.root), "--files", "a.txt"
+            )
         self.assertEqual(code, 1)
         self.assertEqual(payload, {"errors": ["作れません"]})
 
     def test_cleanup_failure_is_reported_alongside_the_original_reason(self):
         with mock.patch.object(
-            scan.workspace, "remove", side_effect=scan.workspace.WorkspaceError("消せません")
+            scan.workspace,
+            "remove",
+            side_effect=scan.workspace.WorkspaceError("消せません"),
         ):
             code, payload = self.run_in_process(
                 "--project-root", str(self.root), "--files", "no-such-file.txt"
@@ -334,14 +377,22 @@ class FailureExitOneTest(ScanTestCase):
         # git の出力が UTF-8 として解釈できない（Linux 上の Shift_JIS のファイル名等）状態を、
         # git_targets の例外で再現する。トレースバックでなく、errors を標準出力に返す
         error = UnicodeDecodeError("utf-8", b"\x83", 0, 1, "invalid start byte")
-        with mock.patch.object(scan.targets.git_targets, "get_diff_targets", side_effect=error):
-            self.assert_non_utf8_path_is_exit_1("--project-root", str(self.root), "--diff")
+        with mock.patch.object(
+            scan.targets.git_targets, "get_diff_targets", side_effect=error
+        ):
+            self.assert_non_utf8_path_is_exit_1(
+                "--project-root", str(self.root), "--diff"
+            )
 
     def test_dirs_with_a_path_that_is_not_utf8_is_exit_1_with_errors(self):
         (self.root / "docs").mkdir()
         error = UnicodeDecodeError("utf-8", b"\x83", 0, 1, "invalid start byte")
-        with mock.patch.object(scan.targets.git_targets, "get_dir_targets", side_effect=error):
-            self.assert_non_utf8_path_is_exit_1("--project-root", str(self.root), "--dirs", "docs")
+        with mock.patch.object(
+            scan.targets.git_targets, "get_dir_targets", side_effect=error
+        ):
+            self.assert_non_utf8_path_is_exit_1(
+                "--project-root", str(self.root), "--dirs", "docs"
+            )
 
     def test_files_with_a_path_that_is_not_utf8_is_exit_1_with_errors(self):
         # argv の UTF-8 でないバイト列は、Python では surrogate escape の文字になる
@@ -355,20 +406,28 @@ class UnexpectedExceptionTest(ScanTestCase):
         write(self.root, "a.txt")
         buffer = io.StringIO()
         with mock.patch.object(tempfile, "tempdir", str(self.tmpdir)):
-            with mock.patch.object(scan.targets, "build_units", side_effect=RuntimeError("想定外")):
+            with mock.patch.object(
+                scan.targets, "build_units", side_effect=RuntimeError("想定外")
+            ):
                 with redirect_stdout(buffer):
                     with self.assertRaises(RuntimeError):
-                        scan.run_cli(["--project-root", str(self.root), "--files", "a.txt"])
+                        scan.run_cli(
+                            ["--project-root", str(self.root), "--files", "a.txt"]
+                        )
         self.assertEqual(self.workspaces(), [])
         self.assertEqual(buffer.getvalue(), "")
 
     def test_exception_while_writing_units_also_leaves_no_workspace(self):
         write(self.root, "a.txt")
         with mock.patch.object(tempfile, "tempdir", str(self.tmpdir)):
-            with mock.patch.object(scan.workspace, "write", side_effect=ValueError("想定外")):
+            with mock.patch.object(
+                scan.workspace, "write", side_effect=ValueError("想定外")
+            ):
                 with redirect_stdout(io.StringIO()):
                     with self.assertRaises(ValueError):
-                        scan.run_cli(["--project-root", str(self.root), "--files", "a.txt"])
+                        scan.run_cli(
+                            ["--project-root", str(self.root), "--files", "a.txt"]
+                        )
         self.assertEqual(self.workspaces(), [])
 
 
@@ -380,13 +439,19 @@ class ArgumentErrorExitTwoTest(ScanTestCase):
         self.assertEqual(self.workspaces(), [])
 
     def test_multiple_scopes_diff_and_dirs(self):
-        self.assert_exit_two("--project-root", str(self.root), "--diff", "--dirs", "docs")
+        self.assert_exit_two(
+            "--project-root", str(self.root), "--diff", "--dirs", "docs"
+        )
 
     def test_multiple_scopes_dirs_and_files(self):
-        self.assert_exit_two("--project-root", str(self.root), "--dirs", "docs", "--files", "a.txt")
+        self.assert_exit_two(
+            "--project-root", str(self.root), "--dirs", "docs", "--files", "a.txt"
+        )
 
     def test_multiple_scopes_diff_and_files(self):
-        self.assert_exit_two("--project-root", str(self.root), "--diff", "--files", "a.txt")
+        self.assert_exit_two(
+            "--project-root", str(self.root), "--diff", "--files", "a.txt"
+        )
 
     def test_out_of_vocabulary_argument(self):
         self.assert_exit_two("--project-root", str(self.root), "--unknown")
@@ -406,7 +471,9 @@ class ArgumentErrorExitTwoTest(ScanTestCase):
     def test_argparse_raises_system_exit_2_in_process(self):
         with redirect_stdout(io.StringIO()), mock.patch("sys.stderr", io.StringIO()):
             with self.assertRaises(SystemExit) as ctx:
-                scan.run_cli(["--project-root", str(self.root), "--diff", "--files", "a.txt"])
+                scan.run_cli(
+                    ["--project-root", str(self.root), "--diff", "--files", "a.txt"]
+                )
         self.assertEqual(ctx.exception.code, 2)
 
 

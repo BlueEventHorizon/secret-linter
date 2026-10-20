@@ -104,25 +104,49 @@ CONFIRM = "confirm"
 PASS = "pass"
 
 #: fail の種別
-FAIL_KINDS = frozenset((
-    "known_token", "private_key", "connection_string", "jwt", "secret_assignment", "password_prose",
-    "package_name",
-))
+FAIL_KINDS = frozenset(
+    (
+        "known_token",
+        "private_key",
+        "connection_string",
+        "jwt",
+        "secret_assignment",
+        "password_prose",
+        "package_name",
+    )
+)
 
 #: confirm の種別（パターン 7 種と AI の 4 種）
-CONFIRM_KINDS = frozenset((
-    "high_entropy", "company_hint", "obfuscated_host", "domain", "email", "private_ip", "internal_host",
-    "person_name", "company_name", "resource_name", "other_ai",
-))
+CONFIRM_KINDS = frozenset(
+    (
+        "high_entropy",
+        "company_hint",
+        "obfuscated_host",
+        "domain",
+        "email",
+        "private_ip",
+        "internal_host",
+        "person_name",
+        "company_name",
+        "resource_name",
+        "other_ai",
+    )
+)
 
 #: 文書用の予約値（ドメイン）。この 1 か所だけに持つ
 RESERVED_DOMAINS = ("example.com", "example.net", "example.org", "localhost")
 RESERVED_TLDS = ("example", "test", "invalid", "localhost")
 
 #: 文書用の予約値（IP アドレスの説明用の範囲）。この 1 か所だけに持つ
-RESERVED_NETWORKS = tuple(ipaddress.ip_network(n) for n in (
-    "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "2001:db8::/32",
-))
+RESERVED_NETWORKS = tuple(
+    ipaddress.ip_network(n)
+    for n in (
+        "192.0.2.0/24",
+        "198.51.100.0/24",
+        "203.0.113.0/24",
+        "2001:db8::/32",
+    )
+)
 
 #: 文書用の予約値（予約ドメインを逆にしたパッケージ名の先頭）。この 1 か所だけに持つ
 _RESERVED_PACKAGE_RE = re.compile(r"(?:com|net|org)\.example(?:\.|$)", re.IGNORECASE)
@@ -164,9 +188,13 @@ def split_value(value):
     ホストは ``None``。
     """
     scheme = _SCHEME_RE.match(value)
-    body = value[scheme.end():] if scheme else value
+    body = value[scheme.end() :] if scheme else value
     boundary = re.search(r"[/?#]", body)
-    authority, rest = (body, "") if boundary is None else (body[:boundary.start()], body[boundary.start():])
+    authority, rest = (
+        (body, "")
+        if boundary is None
+        else (body[: boundary.start()], body[boundary.start() :])
+    )
     if "@" in authority:
         authority = authority.rsplit("@", 1)[1]
     if _parse_ip(authority) is not None:
@@ -202,7 +230,9 @@ def is_reserved_value(value):
     if ip is not None:
         return any(ip in network for network in RESERVED_NETWORKS)
     name = host.lower().rstrip(".")
-    if name in RESERVED_DOMAINS or name.endswith(tuple("." + d for d in RESERVED_DOMAINS)):
+    if name in RESERVED_DOMAINS or name.endswith(
+        tuple("." + d for d in RESERVED_DOMAINS)
+    ):
         return True
     return "." in name and name.rsplit(".", 1)[-1] in RESERVED_TLDS
 
@@ -237,7 +267,9 @@ def matches_secret_name(value, secret_names):
         elif style == "suffix":
             if host is not None and (host == needle or host.endswith("." + needle)):
                 return True
-        elif re.search(r"(?<![A-Za-z0-9])" + re.escape(needle) + r"(?![A-Za-z0-9])", lowered):
+        elif re.search(
+            r"(?<![A-Za-z0-9])" + re.escape(needle) + r"(?![A-Za-z0-9])", lowered
+        ):
             return True
     return False
 
@@ -247,7 +279,7 @@ def matches_secret_name(value, secret_names):
 
 def _strip_scheme(value):
     scheme = _SCHEME_RE.match(value)
-    return value[scheme.end():] if scheme else value
+    return value[scheme.end() :] if scheme else value
 
 
 def _matches_project_item(value, item):
@@ -347,7 +379,9 @@ def classify(candidate, lists):
     if kind == "package_name" and _RESERVED_PACKAGE_RE.match(value):
         return PASS, REASON_RESERVED
     if kind == "package_name":
-        package_reason = package_allowlist_reason(value, lists.bundled_allowlist, lists.project_allowlist)
+        package_reason = package_allowlist_reason(
+            value, lists.bundled_allowlist, lists.project_allowlist
+        )
         if package_reason is not None:
             return PASS, package_reason
     if kind in FAIL_KINDS:
@@ -378,14 +412,20 @@ def overall_class(classes):
 
 
 def _read_judgment(inspection_id, number):
-    path = workspace.workspace_path(inspection_id) / "judgment" / workspace.sequence_filename(number)
+    path = (
+        workspace.workspace_path(inspection_id)
+        / "judgment"
+        / workspace.sequence_filename(number)
+    )
     data = workspace.read_json(path, "作業領域の判定ファイル")
     candidates = data.get("candidates") if isinstance(data, dict) else None
     valid = (
         isinstance(candidates, list)
         and data.get("class") in (FAIL, CONFIRM, PASS)
         and all(
-            isinstance(c, dict) and isinstance(c.get("candidate_id"), str) and c.get("class") in (FAIL, CONFIRM, PASS)
+            isinstance(c, dict)
+            and isinstance(c.get("candidate_id"), str)
+            and c.get("class") in (FAIL, CONFIRM, PASS)
             for c in candidates
         )
     )
@@ -411,7 +451,9 @@ def read_first(inspection_id):
 
     エラーは ``read_latest`` と同じ。
     """
-    workspace.last_number(inspection_id, "judgment")  # 作業領域が無ければ WorkspaceError
+    workspace.last_number(
+        inspection_id, "judgment"
+    )  # 作業領域が無ければ WorkspaceError
     return _read_judgment(inspection_id, 1)
 
 
@@ -428,7 +470,9 @@ def rejudge(candidates, lists, previous, once_ids=()):
     ``confirm`` になるときだけ ``pass``（``answered_public_once``）にする。
     """
     carried = {
-        r["candidate_id"] for r in previous["candidates"] if r.get("reason") == REASON_ANSWERED_ONCE
+        r["candidate_id"]
+        for r in previous["candidates"]
+        if r.get("reason") == REASON_ANSWERED_ONCE
     }
     carried.update(once_ids)
     return _judge(candidates, lists, carried)

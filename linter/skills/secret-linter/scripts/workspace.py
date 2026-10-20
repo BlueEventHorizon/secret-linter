@@ -24,7 +24,7 @@ import stat
 import tempfile
 from pathlib import Path
 
-PLACE_PREFIX = "forge-secret-linter-"
+PLACE_PREFIX = "secret-linter-"
 _ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 _SEQ_PATTERN = re.compile(r"(\d{4,})\.json")
 _MAX_CREATE_ATTEMPTS = 100
@@ -40,7 +40,9 @@ def _validate_id(inspection_id):
     置き場のパスは検査 ID から組み立てるため、パス区切りや ``..`` を含む値を通さない。
     """
     if not isinstance(inspection_id, str) or not _ID_PATTERN.fullmatch(inspection_id):
-        raise WorkspaceError("検査 ID が不正です（32 桁の 16 進数でなければなりません）")
+        raise WorkspaceError(
+            "検査 ID が不正です（32 桁の 16 進数でなければなりません）"
+        )
 
 
 def workspace_path(inspection_id):
@@ -77,7 +79,9 @@ def existing_workspace(inspection_id):
     except OSError as exc:
         raise WorkspaceError(f"作業領域を確かめられません: {exc}") from exc
     if not stat.S_ISDIR(mode):
-        raise WorkspaceError("作業領域がディレクトリではありません（シンボリックリンクを含む）")
+        raise WorkspaceError(
+            "作業領域がディレクトリではありません（シンボリックリンクを含む）"
+        )
     return path
 
 
@@ -103,7 +107,11 @@ def sequence_filename(number):
 def _check_relative(rel_path):
     """置き場の中の相対パスが、置き場の外を指さないことを確かめる。"""
     parts = Path(rel_path).parts
-    if not parts or Path(rel_path).is_absolute() or any(p in ("", ".", "..") for p in parts):
+    if (
+        not parts
+        or Path(rel_path).is_absolute()
+        or any(p in ("", ".", "..") for p in parts)
+    ):
         raise WorkspaceError("作業領域の中の相対パスが不正です")
 
 
@@ -112,7 +120,9 @@ def _publish_text(path, text):
 
     既に ``path`` がある場合は ``FileExistsError``（何も変更しない）。改行は変換せず、そのまま書く。
     """
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
             fh.write(text)
@@ -151,7 +161,9 @@ def _write_at(inspection_id, rel_path, publish):
             _make_dirs(root, target.parent)
         publish(target)
     except FileExistsError as exc:
-        raise WorkspaceError(f"作業領域のファイルは上書きできません: {rel_path}") from exc
+        raise WorkspaceError(
+            f"作業領域のファイルは上書きできません: {rel_path}"
+        ) from exc
     except OSError as exc:
         raise WorkspaceError(f"作業領域へ書けません: {exc}") from exc
     return target
@@ -162,7 +174,9 @@ def write(inspection_id, rel_path, payload):
 
     値は生成・要約・改変せずに置く。サブディレクトリは、無ければ 0700 で作る。
     """
-    return _write_at(inspection_id, rel_path, lambda target: _publish_new(target, payload))
+    return _write_at(
+        inspection_id, rel_path, lambda target: _publish_new(target, payload)
+    )
 
 
 def write_text(inspection_id, rel_path, text):
@@ -171,7 +185,9 @@ def write_text(inspection_id, rel_path, text):
     元のファイルが無い検査単位（履歴の追加行・コミットメッセージ）の本文を置くために使う。
     本文は UTF-8 で、改変せずに書く。
     """
-    return _write_at(inspection_id, rel_path, lambda target: _publish_text(target, text))
+    return _write_at(
+        inspection_id, rel_path, lambda target: _publish_text(target, text)
+    )
 
 
 def write_next(inspection_id, rel_dir, payload):
@@ -204,7 +220,11 @@ def sequence_files(directory):
     連番の規則（桁数・パターン）は本モジュールが 1 か所だけに持つ。連番のファイルを読む側（AI の候補の記録など）も、
     これを使う。``directory`` が無ければ ``FileNotFoundError``、列挙できなければ ``OSError``。
     """
-    return sorted((int(m.group(1)), p) for p in directory.iterdir() if (m := _SEQ_PATTERN.fullmatch(p.name)))
+    return sorted(
+        (int(m.group(1)), p)
+        for p in directory.iterdir()
+        if (m := _SEQ_PATTERN.fullmatch(p.name))
+    )
 
 
 def _last_number(directory):

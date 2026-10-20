@@ -13,7 +13,7 @@ DES-087 のモジュール表 W-5（消す）と、テスト表 SC-14・SC-16 �
 テストの入力値は、明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_cleanup -v
+  python3 -m unittest tests.test_cleanup -v
 """
 
 import importlib.util
@@ -27,12 +27,17 @@ import unittest
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 SCRIPT = _SCRIPTS_DIR / "cleanup.py"
 
-_spec = importlib.util.spec_from_file_location("secret_linter_workspace", _SCRIPTS_DIR / "workspace.py")
+_spec = importlib.util.spec_from_file_location(
+    "secret_linter_workspace", _SCRIPTS_DIR / "workspace.py"
+)
 workspace = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(workspace)
 
@@ -40,7 +45,9 @@ PLACEHOLDER = {"value": "EXAMPLE_PLACEHOLDER_VALUE"}
 
 
 def run(*args):
-    completed = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True)
+    completed = subprocess.run(
+        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True
+    )
     payload = json.loads(completed.stdout) if completed.stdout.strip() else None
     return completed.returncode, payload, completed
 
@@ -76,7 +83,11 @@ class CleanupTest(unittest.TestCase):
         workspace.write(inspection_id, "pattern.json", PLACEHOLDER)
         run(inspection_id)
         self.assertFalse(os.path.lexists(place))
-        leftovers = list(Path(tempfile.gettempdir()).glob(f"{workspace.PLACE_PREFIX}{inspection_id}*"))
+        leftovers = list(
+            Path(tempfile.gettempdir()).glob(
+                f"{workspace.PLACE_PREFIX}{inspection_id}*"
+            )
+        )
         self.assertEqual(leftovers, [])
 
     def test_succeeds_when_place_does_not_exist(self):
@@ -97,7 +108,7 @@ class CleanupTest(unittest.TestCase):
         self.assertTrue((workspace.workspace_path(other) / "units.json").is_file())
 
     def test_rejects_invalid_inspection_id_with_exit_1(self):
-        victim = Path(tempfile.mkdtemp(prefix="forge-secret-linter-test-victim-"))
+        victim = Path(tempfile.mkdtemp(prefix="secret-linter-test-victim-"))
         try:
             for bad in ("../" + victim.name, "not-an-id", "A" * 32, "a" * 31):
                 with self.subTest(inspection_id=bad):

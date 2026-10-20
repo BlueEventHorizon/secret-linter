@@ -12,7 +12,7 @@ DES-087 のモジュール表 T-1（--diff / --dirs / --files）と、テスト�
 git を使うテストは、一時ディレクトリに git init して状態を作る。入力は明白なプレースホルダだけを使う。
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_targets -v
+  python3 -m unittest tests.test_targets -v
 """
 
 import importlib.util
@@ -24,11 +24,16 @@ import unittest.mock
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"
+    Path(__file__).resolve().parents[1]
+    / "linter"
+    / "skills"
+    / "secret-linter"
+    / "scripts"
 )
 
-_spec = importlib.util.spec_from_file_location("secret_linter_targets", _SCRIPTS_DIR / "targets.py")
+_spec = importlib.util.spec_from_file_location(
+    "secret_linter_targets", _SCRIPTS_DIR / "targets.py"
+)
 targets = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(targets)
 
@@ -39,7 +44,9 @@ PLACEHOLDER = "EXAMPLE_PLACEHOLDER_VALUE\n"
 
 
 def _git(args, cwd):
-    subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, check=True)
+    subprocess.run(
+        ["git", *args], cwd=str(cwd), capture_output=True, text=True, check=True
+    )
 
 
 def init_repo(root: Path):
@@ -82,7 +89,10 @@ class ResolveDiffTest(RepoTestCase):
 
         entries = targets.resolve_diff(self.root)
 
-        self.assertEqual([label for label, _ in entries], ["staged.txt", "unstaged.txt", "untracked.txt"])
+        self.assertEqual(
+            [label for label, _ in entries],
+            ["staged.txt", "unstaged.txt", "untracked.txt"],
+        )
         for label, path in entries:
             self.assertEqual(path, self.root / label)
 
@@ -117,7 +127,9 @@ class NonUtf8PathTest(RepoTestCase):
 
     def test_diff_decode_error_becomes_target_error(self):
         error = UnicodeDecodeError("utf-8", b"\x83", 0, 1, "invalid start byte")
-        with unittest.mock.patch.object(targets.git_targets, "get_diff_targets", side_effect=error):
+        with unittest.mock.patch.object(
+            targets.git_targets, "get_diff_targets", side_effect=error
+        ):
             with self.assertRaises(TargetError) as ctx:
                 targets.resolve_diff(self.root)
         self.assertIn("UTF-8", str(ctx.exception))
@@ -125,7 +137,9 @@ class NonUtf8PathTest(RepoTestCase):
     def test_dirs_decode_error_becomes_target_error(self):
         (self.root / "docs").mkdir()
         error = UnicodeDecodeError("utf-8", b"\x83", 0, 1, "invalid start byte")
-        with unittest.mock.patch.object(targets.git_targets, "get_dir_targets", side_effect=error):
+        with unittest.mock.patch.object(
+            targets.git_targets, "get_dir_targets", side_effect=error
+        ):
             with self.assertRaises(TargetError) as ctx:
                 targets.resolve_dirs(self.root, ["docs"])
         self.assertIn("UTF-8", str(ctx.exception))
@@ -148,7 +162,9 @@ class ResolveDirsTest(RepoTestCase):
 
         entries = targets.resolve_dirs(self.root, ["docs"])
 
-        self.assertEqual([label for label, _ in entries], ["docs/a.md", "docs/sub/b.md"])
+        self.assertEqual(
+            [label for label, _ in entries], ["docs/a.md", "docs/sub/b.md"]
+        )
         for label, path in entries:
             self.assertEqual(path, self.root / label)
 
@@ -284,7 +300,14 @@ class BuildUnitsTest(unittest.TestCase):
         units, _ = targets.build_units([entry])
         self.assertEqual(
             units,
-            [{"unit_id": "U0001", "kind": "file", "label": "a.txt", "text_path": str(entry[1])}],
+            [
+                {
+                    "unit_id": "U0001",
+                    "kind": "file",
+                    "label": "a.txt",
+                    "text_path": str(entry[1]),
+                }
+            ],
         )
 
     def test_large_file_is_a_unit_not_skipped(self):
@@ -300,7 +323,10 @@ class BuildUnitsTest(unittest.TestCase):
         self.assertEqual(units, [])
         self.assertEqual(skipped, [{"label": "bin.dat", "reason": "binary"}])
 
-    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), "権限を外せない環境")
+    @unittest.skipIf(
+        os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+        "権限を外せない環境",
+    )
     def test_unreadable_file_is_recorded(self):
         entry = self.entry("locked.txt", PLACEHOLDER)
         entry[1].chmod(0o000)

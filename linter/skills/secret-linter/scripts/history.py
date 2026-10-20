@@ -61,7 +61,17 @@ LABEL_COMMIT_MESSAGE = "コミットメッセージ"
 #: （SHA-1 は 40 桁、SHA-256 は 64 桁。長さを決め打ちすると、別の形式のリポジトリで失敗する）。
 _COMMIT_ID = re.compile(r"[0-9a-f]+")
 _HUNK = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-_ESCAPES = {"a": 7, "b": 8, "f": 12, "n": 10, "r": 13, "t": 9, "v": 11, "\\": 92, '"': 34}
+_ESCAPES = {
+    "a": 7,
+    "b": 8,
+    "f": 12,
+    "n": 10,
+    "r": 13,
+    "t": 9,
+    "v": 11,
+    "\\": 92,
+    '"': 34,
+}
 
 #: ``git log`` の共通の引数。設定（色・署名・外部 diff・接頭辞）に結果を左右されないよう明示する。
 _LOG_BASE = ["log", "--no-color", "--no-show-signature"]
@@ -73,9 +83,13 @@ def _git(project_root, args):
     try:
         code, stdout, stderr = git_targets.run_git(args, project_root)
     except UnicodeDecodeError as exc:
-        raise targets.TargetError("履歴を文字列として読めません（UTF-8 でない内容を含みます）") from exc
+        raise targets.TargetError(
+            "履歴を文字列として読めません（UTF-8 でない内容を含みます）"
+        ) from exc
     if code != 0:
-        raise targets.TargetError(f"git {args[0]} の実行に失敗しました: {stderr.strip()}")
+        raise targets.TargetError(
+            f"git {args[0]} の実行に失敗しました: {stderr.strip()}"
+        )
     return stdout
 
 
@@ -149,7 +163,9 @@ def _parse_added_lines(stdout, delimiter):
     added = {}
     skipped = {}
     commit = None
-    current = None  # {"path", "binary", "deleted", "lines", "numbers", "in_hunk", "next"}
+    current = (
+        None  # {"path", "binary", "deleted", "lines", "numbers", "in_hunk", "next"}
+    )
 
     def flush():
         if current is None:
@@ -159,7 +175,9 @@ def _parse_added_lines(stdout, delimiter):
         elif current["binary"]:
             skipped[commit].append((current["path"], targets.SKIP_BINARY))
         elif current["lines"]:
-            added[commit].append((current["path"], current["lines"], current["numbers"]))
+            added[commit].append(
+                (current["path"], current["lines"], current["numbers"])
+            )
 
     for line in stdout.split("\n"):
         if line.startswith(delimiter):
@@ -188,7 +206,9 @@ def _parse_added_lines(stdout, delimiter):
         if line.startswith("@@ "):
             match = _HUNK.match(line)
             if match is None:
-                raise targets.TargetError("git の diff の hunk の見出しを解釈できません")
+                raise targets.TargetError(
+                    "git の diff の hunk の見出しを解釈できません"
+                )
             current["in_hunk"] = True
             current["next"] = int(match.group(1))
         elif current["in_hunk"]:
@@ -242,7 +262,9 @@ def resolve_branch(project_root, inspection_id):
             *_RANGE,
         ],
     )
-    message_out = _git(project_root, [*_LOG_BASE, f"--format={delimiter}%H%n%B", *_RANGE])
+    message_out = _git(
+        project_root, [*_LOG_BASE, f"--format={delimiter}%H%n%B", *_RANGE]
+    )
     added, skipped_by_commit = _parse_added_lines(diff_out, delimiter)
     messages = _parse_messages(message_out, delimiter)
     if not set(added) <= {commit for commit, _ in messages}:

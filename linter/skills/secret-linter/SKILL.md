@@ -18,8 +18,8 @@ allowed-tools: Bash, Read, Agent, AskUserQuestion
 機密情報が外部へ出る直前に検査する。commit された秘密・GitHub に書き込まれた秘密は、削除しても漏洩として扱うため、止める時点は外へ出す前である。
 
 - **検査の範囲**: `--diff`（未 commit の変更のファイル全体）、`--branch`（push で外へ出る履歴。リモートに無い commit の追加行とコミットメッセージ）、`--files`（指定ファイル全体）、`--dirs`（指定ディレクトリ配下のファイル全体）から 1 つ指定する。複数は指定できない。省略したときは `--diff` とする
-- **検出の方式**: 既知の形式と形式の手がかりに一致する値は、スクリプトが決定論的に検出する。形式を持たない混入（個人名・法人格の表記の無い会社名・リソース名等）は、`--rules-only` を付けないときだけ、カスタム Agent `forge:secret-reader` が本文を読んで検出する。`--rules-only` は速さを優先する指定で、外へ出す直前の検査などで付ける
-- **判定**: 検出した値を、不合格・要確認・通過に分ける。1 件でも不合格なら全体が不合格になる。要確認は利用者に確認し、回答に従って許可リスト（プロジェクトの `.forge/secret_allowlist.yaml`）または機密の名前リスト（`~/.project-secret.yaml`）へ追記する。自動修正はしない
+- **検出の方式**: 既知の形式と形式の手がかりに一致する値は、スクリプトが決定論的に検出する。形式を持たない混入（個人名・法人格の表記の無い会社名・リソース名等）は、`--rules-only` を付けないときだけ、カスタム Agent `linter:secret-reader` が本文を読んで検出する。`--rules-only` は速さを優先する指定で、外へ出す直前の検査などで付ける
+- **判定**: 検出した値を、不合格・要確認・通過に分ける。1 件でも不合格なら全体が不合格になる。要確認は利用者に確認し、回答に従って許可リスト（プロジェクトの `.secret-linter/allowlist.yaml`）または機密の名前リスト（`~/.project-secret.yaml`）へ追記する。自動修正はしない
 - **結果**: 各候補の位置・種別・値・判定を、値を元のまま利用者に示す。検査の結果はファイルに残さない。呼び出し元へ返すのは区分だけで、値を含めない
 
 ## 引数の解釈 [CRITICAL]
@@ -55,10 +55,10 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/scan.py" {範囲の指定} --project-root "
 
 ### 手順 2: AI による検出を依頼する
 
-`--rules-only` でないときだけ行う。Agent ツールで、カスタム Agent `forge:secret-reader` を起動する。prompt に書くのは識別値だけである。
+`--rules-only` でないときだけ行う。Agent ツールで、カスタム Agent `linter:secret-reader` を起動する。prompt に書くのは識別値だけである。
 
 ```
-Agent ツール起動: 形式を持たない混入の検出 (subagent_type: forge:secret-reader)
+Agent ツール起動: 形式を持たない混入の検出 (subagent_type: linter:secret-reader)
 prompt:
   - inspection_id: {INSPECTION_ID}
 ```

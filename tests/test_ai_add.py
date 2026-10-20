@@ -12,7 +12,7 @@ DES-087 のモジュール表 W-3 と、テスト表 SC-06（本文と対応し�
 - 値が標準出力に出ない。書いたファイルを上書きしない（連番）
 
 実行:
-  python3 -m unittest tests.forge.secret-linter.test_ai_add -v
+  python3 -m unittest tests.test_ai_add -v
 """
 
 import importlib.util
@@ -37,13 +37,19 @@ class AcceptTest(support.AiTestCase):
         self.assertEqual((code, payload), (0, {"accepted_count": 1}))
         self.assertEqual(
             self.events(iid),
-            [{
-                "result": "accepted",
-                "candidate": {
-                    "candidate_id": "A0001", "source": "ai", "unit_id": "U0001",
-                    "line": None, "kind": "person_name", "value": VALUE_A,
-                },
-            }],
+            [
+                {
+                    "result": "accepted",
+                    "candidate": {
+                        "candidate_id": "A0001",
+                        "source": "ai",
+                        "unit_id": "U0001",
+                        "line": None,
+                        "kind": "person_name",
+                        "value": VALUE_A,
+                    },
+                }
+            ],
         )
 
     def test_accepts_file_value_with_line(self):
@@ -55,7 +61,9 @@ class AcceptTest(support.AiTestCase):
     def test_accepts_added_lines_with_original_line_number(self):
         # added_lines の line は、検査単位の line_numbers の対応する元のファイルの行番号
         iid = self.make_workspace()
-        code, _, _, _ = self.add(iid, VALUE_B, unit_id="U0002", kind="company_name", line=25)
+        code, _, _, _ = self.add(
+            iid, VALUE_B, unit_id="U0002", kind="company_name", line=25
+        )
         self.assertEqual(code, 0)
         candidate = self.events(iid)[0]["candidate"]
         self.assertEqual((candidate["line"], candidate["commit"]), (25, "COMMIT-ID-1"))
@@ -68,10 +76,15 @@ class AcceptTest(support.AiTestCase):
 
     def test_accepts_commit_message_with_line(self):
         iid = self.make_workspace()
-        code, _, _, _ = self.add(iid, VALUE_B, unit_id="U0003", kind="resource_name", line=3)
+        code, _, _, _ = self.add(
+            iid, VALUE_B, unit_id="U0003", kind="resource_name", line=3
+        )
         self.assertEqual(code, 0)
         candidate = self.events(iid)[0]["candidate"]
-        self.assertEqual((candidate["line"], candidate["commit"], candidate["kind"]), (3, "COMMIT-ID-2", "resource_name"))
+        self.assertEqual(
+            (candidate["line"], candidate["commit"], candidate["kind"]),
+            (3, "COMMIT-ID-2", "resource_name"),
+        )
 
     def test_accepts_commit_message_without_line(self):
         iid = self.make_workspace()
@@ -89,7 +102,10 @@ class AcceptTest(support.AiTestCase):
         code, payload, _, _ = self.add(iid, "first line")
         self.assertEqual((code, payload), (0, {"accepted_count": 2}))
         events_dir = self.place(iid) / "ai_events"
-        self.assertEqual(sorted(p.name for p in events_dir.glob("*.json")), ["0001.json", "0002.json"])
+        self.assertEqual(
+            sorted(p.name for p in events_dir.glob("*.json")),
+            ["0001.json", "0002.json"],
+        )
         ids = [e["candidate"]["candidate_id"] for e in self.events(iid)]
         self.assertEqual(ids, ["A0001", "A0002"])
         first = json.loads((events_dir / "0001.json").read_text(encoding="utf-8"))
@@ -98,7 +114,13 @@ class AcceptTest(support.AiTestCase):
     def test_trailing_newline_is_not_part_of_value(self):
         iid = self.make_workspace()
         code, _, _, _ = self.run_script(
-            "ai_add.py", iid, "--unit-id", "U0001", "--kind", "person_name", stdin=VALUE_A + "\r\n"
+            "ai_add.py",
+            iid,
+            "--unit-id",
+            "U0001",
+            "--kind",
+            "person_name",
+            stdin=VALUE_A + "\r\n",
         )
         self.assertEqual(code, 0)
         self.assertEqual(self.events(iid)[0]["candidate"]["value"], VALUE_A)
@@ -137,30 +159,43 @@ class RejectTest(support.AiTestCase):
     def test_rejects_value_not_in_the_given_line(self):
         iid = self.make_workspace()
         # VALUE_A は 2 行目にある。1 行目を指定したら拒否
-        self.assert_rejected(iid, self.add(iid, VALUE_A, line=1), "value_not_in_text", VALUE_A)
+        self.assert_rejected(
+            iid, self.add(iid, VALUE_A, line=1), "value_not_in_text", VALUE_A
+        )
 
     def test_rejects_value_in_other_unit_text(self):
         iid = self.make_workspace()
-        self.assert_rejected(iid, self.add(iid, VALUE_B, unit_id="U0001"), "value_not_in_text", VALUE_B)
+        self.assert_rejected(
+            iid, self.add(iid, VALUE_B, unit_id="U0001"), "value_not_in_text", VALUE_B
+        )
 
     def test_rejects_unknown_unit_id(self):
         iid = self.make_workspace()
-        self.assert_rejected(iid, self.add(iid, VALUE_A, unit_id="U9999"), "unit_not_found", VALUE_A)
+        self.assert_rejected(
+            iid, self.add(iid, VALUE_A, unit_id="U9999"), "unit_not_found", VALUE_A
+        )
 
     def test_rejects_line_that_does_not_exist(self):
         iid = self.make_workspace()
-        self.assert_rejected(iid, self.add(iid, VALUE_A, line=99), "line_not_in_unit", VALUE_A)
+        self.assert_rejected(
+            iid, self.add(iid, VALUE_A, line=99), "line_not_in_unit", VALUE_A
+        )
 
     def test_rejects_added_lines_line_by_body_position(self):
         # added_lines では本文の 2 行目は元の行番号 25。2 は存在しない行番号として拒否される
         iid = self.make_workspace()
         self.assert_rejected(
-            iid, self.add(iid, VALUE_B, unit_id="U0002", line=2), "line_not_in_unit", VALUE_B
+            iid,
+            self.add(iid, VALUE_B, unit_id="U0002", line=2),
+            "line_not_in_unit",
+            VALUE_B,
         )
 
     def test_rejects_empty_value(self):
         iid = self.make_workspace()
-        result = self.run_script("ai_add.py", iid, "--unit-id", "U0001", "--kind", "person_name", stdin="")
+        result = self.run_script(
+            "ai_add.py", iid, "--unit-id", "U0001", "--kind", "person_name", stdin=""
+        )
         code, payload, _, _ = result
         self.assertEqual(code, 1)
         self.assertTrue(payload["errors"])
@@ -182,7 +217,13 @@ class RejectTest(support.AiTestCase):
     def test_kind_outside_vocabulary_exits_2_and_writes_nothing(self):
         iid = self.make_workspace()
         code, _, _, _ = self.run_script(
-            "ai_add.py", iid, "--unit-id", "U0001", "--kind", "known_token", stdin=VALUE_A
+            "ai_add.py",
+            iid,
+            "--unit-id",
+            "U0001",
+            "--kind",
+            "known_token",
+            stdin=VALUE_A,
         )
         self.assertEqual(code, 2)
         self.assertEqual(self.events(iid), [])
@@ -190,7 +231,15 @@ class RejectTest(support.AiTestCase):
     def test_non_integer_line_exits_2(self):
         iid = self.make_workspace()
         code, _, _, _ = self.run_script(
-            "ai_add.py", iid, "--unit-id", "U0001", "--kind", "person_name", "--line", "x", stdin=VALUE_A
+            "ai_add.py",
+            iid,
+            "--unit-id",
+            "U0001",
+            "--kind",
+            "person_name",
+            "--line",
+            "x",
+            stdin=VALUE_A,
         )
         self.assertEqual(code, 2)
 
@@ -267,7 +316,16 @@ class CandidateIdTest(unittest.TestCase):
     def test_candidate_id_is_a_prefix_and_four_digits(self):
         import sys
 
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugins" / "forge" / "skills" / "secret-linter" / "scripts"))
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parents[1]
+                / "linter"
+                / "skills"
+                / "secret-linter"
+                / "scripts"
+            ),
+        )
         import ai_events
 
         self.assertEqual(ai_events.AI_CANDIDATE_PREFIX, "A")

@@ -29,7 +29,9 @@ class InputError(Exception):
 
 
 def read_json(inspection_id, name):
-    data = workspace.read_json(workspace.workspace_path(inspection_id) / name, f"作業領域の {name}")
+    data = workspace.read_json(
+        workspace.workspace_path(inspection_id) / name, f"作業領域の {name}"
+    )
     if not isinstance(data, dict):
         raise InputError(f"作業領域の {name} の形が不正です")
     return data
@@ -85,7 +87,10 @@ def judgment_includes_ai(latest):
     ``candidate_id`` が ``A`` で始まる候補があれば真。AI の候補が 0 件のときは偽になるが、そのとき
     連結しても候補の配列は変わらないため、結果は同じである。
     """
-    return any(r["candidate_id"].startswith(ai_events.AI_CANDIDATE_PREFIX) for r in latest["candidates"])
+    return any(
+        r["candidate_id"].startswith(ai_events.AI_CANDIDATE_PREFIX)
+        for r in latest["candidates"]
+    )
 
 
 def read_inputs_following_judgment(inspection_id):
