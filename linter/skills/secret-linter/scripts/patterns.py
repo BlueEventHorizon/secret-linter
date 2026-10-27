@@ -25,7 +25,8 @@
 1. 抑制マーカー（行末の ``secrets-scan: ignore``）付きの行は、候補にせず、件数と位置を数える。
    マーカー自体は走査から除く。
 2. 既知の形式: ``known_token``・``private_key``・``connection_string``（値は埋め込まれたパスワード）・``jwt``
-3. 秘密らしいキーへの代入: ``secret_assignment``（値だけ）
+3. 秘密らしいキーへの代入: ``secret_assignment``（値だけ。文字列リテラルの改行を表す ``\\n``
+   （バックスラッシュと n の 2 文字）は値に入れず、値は ``\\n`` の手前で終わる）
 4. ``password_prose``（散文の中に書かれた認証用の文字列。値は 6 文字以上で、数字か記号を 1 つ以上含む ASCII 印字文字。
    バッククォートで囲んだコード片は、対象にしない）
 5. 高エントロピー文字列: ``high_entropy``（40 文字以上、16 進数だけのものを除く）
@@ -205,7 +206,7 @@ _ASSIGNMENT_RE = re.compile(
           |private[_-]?key|auth[_-]?(?:token|key|secret|header)|authorization)
        [A-Za-z0-9_.\-]*)
     \s*[:=]\s*
-    (?P<quote>["'])?(?P<value>[^\s"',;]{8,256})(?(quote)["'])
+    (?P<quote>["'])?(?P<value>(?:(?!\\n)[^\s"',;]){8,256})(?(quote)(?:["']|(?=\\n)))
     """
 )
 
