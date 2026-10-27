@@ -106,6 +106,13 @@ class SecretReaderDefinitionTest(support.AiTestCase):
     def test_value_is_passed_through_a_quoted_here_document(self):
         self.assertIn("<<'VALUE'", self.text)
 
+    def test_forbids_chaining_ai_add_calls_in_one_command(self):
+        # 並べて実行すると、拒否の結果を読んでから立て直せず、拒否が 2 回続いて検出が止まる
+        self.assertRegex(
+            self.text,
+            r"Bash の 1 回の実行につき 1 件.*複数の `ai_add.py` を.*1 つのコマンドに並べない",
+        )
+
     def test_kind_vocabulary_matches_ai_add(self):
         # ai_add.py を import せず（他テストの import 状態に触れない）、ソースの KINDS 定義から読む
         source = (SCRIPTS_DIR / "ai_add.py").read_text(encoding="utf-8")
