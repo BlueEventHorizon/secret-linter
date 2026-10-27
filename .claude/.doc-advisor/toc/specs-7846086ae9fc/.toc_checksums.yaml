@@ -1,0 +1,8 @@
+# ToC checksums for key: specs
+# Auto-generated - do not edit
+generated_at: 2026-10-21T13:20:34Z
+file_count: 3
+checksums:
+  docs/specs/secret-linter/design/DES-087_secret_linter_design.md: 1284a504158d154518859969d14a935c3287b2de7429521a636474b397c02b42
+  docs/specs/secret-linter/requirements/REQ-032_secret-linter.md: 15eb37cdf08762ca99b7448d0a25b7bc7850463460aaa18944acea1edb812b61
+  linter/docs/sensitive_information_spec.md: a220eca58d2716733d8fc35730ded82276e4b6882f8d929cc6c0e1f34c781f35

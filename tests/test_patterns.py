@@ -83,6 +83,8 @@ DOMAIN = "docs.example.org"
 EMAIL = "taro@example.org"
 PRIVATE_IP = vocab.ip(192, 168, 0, 10)
 INTERNAL_HOST = vocab.domain("db01", "corp", "internal")
+#: 文字列リテラルの改行を表すエスケープ（バックスラッシュと n の 2 文字）。ソースに直接書かない
+ESC_N = chr(92) + "n"
 
 #: kind ごとの入力の 1 行と、その行から出る（その kind の）候補の値
 KIND_CASES = {
@@ -207,6 +209,18 @@ class KindTest(PatternTestCase):
         for line in (
             'password: "' + ASSIGNED_VALUE + '"',
             "SECRET_KEY='" + ASSIGNED_VALUE + "'",
+        ):
+            with self.subTest(line=line[:12]):
+                self.assertEqual(
+                    values_of(self.detect_text(line + "\n")), [ASSIGNED_VALUE]
+                )
+
+    def test_secret_assignment_value_ends_at_a_newline_escape(self):
+        """文字列リテラルの ``\\n`` は改行であり、値に入らない（値は ``\\n`` の手前で終わる）。"""
+        for line in (
+            "api_key: " + ASSIGNED_VALUE + ESC_N,
+            'api_key = "' + ASSIGNED_VALUE + ESC_N + '"',
+            'x = "api_key: ' + ASSIGNED_VALUE + ESC_N + 'port: 1"',
         ):
             with self.subTest(line=line[:12]):
                 self.assertEqual(
@@ -576,6 +590,15 @@ class FilterTest(PatternTestCase):
 
     def test_placeholder_is_counted_under_placeholder(self):
         self.assert_filtered('api_key = "<your-api-key>"', "placeholder")
+
+    def test_placeholder_followed_by_a_newline_escape_is_filtered(self):
+        """プレースホルダの後ろに ``\\n`` のエスケープが続いても、プレースホルダとして除かれる。"""
+        for line in (
+            'CONFIG = "port: 1' + ESC_N + "api_key: dummy-placeholder" + ESC_N + '"',
+            'CONFIG = "api_key: dummy-placeholder' + ESC_N + 'port: 1"',
+        ):
+            with self.subTest(line=line[:12]):
+                self.assert_filtered(line, "placeholder")
 
     def test_placeholder_applies_to_known_formats_too(self):
         # 公式の例示値は、既知の形式に一致しても、プレースホルダ（example を含む）として除かれる
