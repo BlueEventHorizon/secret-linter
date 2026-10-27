@@ -393,7 +393,7 @@ AI で実現する処理に、次の 3 つを定める。出力のスキーマ�
 #### AI 検出の入出力
 
 - 入力: 検査 ID だけ。検査単位のパスは `ai_units.py` から得る。
-- 出力: 候補 1 件ごとに `ai_add.py` を 1 回呼ぶ。位置と種別は引数（`--unit-id`・`--line`（任意）・`--kind`）で、値は標準入力の文字列で渡す。AI は JSON を組み立てない。構造（`ai_events/NNNN.json`）は script が作る。`--kind` の語彙は `person_name`・`company_name`・`resource_name`・`other_ai` で、`argparse` の選択肢にする。
+- 出力: 候補 1 件ごとに `ai_add.py` を 1 回呼ぶ。位置と種別は引数（`--unit-id`・`--line`（任意）・`--kind`）で、値は標準入力の文字列で渡す。`ai_add.py` は Bash の 1 回の実行につき 1 件だけ呼び、複数を 1 つのコマンドに並べない（拒否の結果を読んでから、1 回だけ立て直すため）。AI は JSON を組み立てない。構造（`ai_events/NNNN.json`）は script が作る。`--kind` の語彙は `person_name`・`company_name`・`resource_name`・`other_ai` で、`argparse` の選択肢にする。
 - `ai_add.py` が候補を受理する条件（引数と本文の対応関係の検査だけを置く）:
   - `unit_id` が実在すること。
   - `value` が、その検査単位の本文（`line` があればその行）に、そのまま含まれること。AI が作った値を、ここで拒否する。
