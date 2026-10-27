@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-27
+
+### linter
+
+- **fix**: 文字列中の `\n`（バックスラッシュと n の 2 文字）を、`secret_assignment` の値に含めていたため、`dummy-placeholder\n` のような値が placeholder として除外されず、不合格になっていた。値を `\n` の手前で終えるようにした（#2）。
+- **fix**: `secret-reader` が `ai_add.py` を 1 つの Bash コマンドに並べて実行すると、拒否の結果を読んでから立て直せず、拒否が 2 回続いて AI 検出が実行不能になっていた。Agent の定義に、`ai_add.py` を Bash の 1 回の実行につき 1 件だけ呼ぶことを明記した（#3）。
+- **changed**: plugin のマニフェスト（`plugin.json`・`marketplace.json`）の作者・所有者の名義を `moons` に改め、`$schema` を除いた。
+
+### marketplace
+
+- **chore**: linter 0.1.1 のリリースに伴い marketplace バージョンをバンプ
+
 ## [0.1.0] - 2026-10-20
 
 ### linter

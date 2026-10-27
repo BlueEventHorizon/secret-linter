@@ -1,9 +1,8 @@
 {
-  "$schema": "https://www.schemastore.org/claude-code-plugin-manifest.json",
   "name": "linter",
   "description": "Checks for sensitive information (credentials, private keys, personal data, internal hostnames) before it leaves for Git or GitHub.",
-  "version": "0.1.0",
-  "author": { "name": "BlueEventHorizon" },
+  "version": "0.1.1",
+  "author": { "name": "moons" },
   "license": "MIT",
   "homepage": "https://github.com/BlueEventHorizon/secret-linter",
   "repository": "https://github.com/BlueEventHorizon/secret-linter",

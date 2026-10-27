@@ -1,18 +1,17 @@
 {
-  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
   "name": "secret-linter",
-  "owner": { "name": "BlueEventHorizon" },
+  "owner": { "name": "moons" },
   "metadata": {
     "description": "Secret information linter for Claude Code: checks for credentials, private keys, and personal data before they leave for Git or GitHub",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "plugins": [
     {
       "name": "linter",
       "source": "./linter",
       "description": "Checks for sensitive information (credentials, private keys, personal data, internal hostnames) before it leaves for Git or GitHub, and returns pass / fail / could not run.",
-      "version": "0.1.0",
-      "author": { "name": "BlueEventHorizon" },
+      "version": "0.1.1",
+      "author": { "name": "moons" },
       "homepage": "https://github.com/BlueEventHorizon/secret-linter"
     }
   ]
